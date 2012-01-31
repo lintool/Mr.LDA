@@ -1,0 +1,10 @@
+*~
+.*crc
+build/
+dist/
+etc/junit.sh
+etc/run.sh
+ivy/ivy.jar
+lib/
+.DS_Store
+

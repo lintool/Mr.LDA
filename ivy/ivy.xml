@@ -1,0 +1,21 @@
+<ivy-module version="2.0">
+  <info organisation="cc.mrlda" module="mrlda" revision="${version}"/>
+
+  <publications>
+    <artifact type="pom" ext="pom" conf="default"/>
+    <artifact type="jar" ext="jar" conf="default"/>
+  </publications>
+
+  <dependencies>
+    <dependency org="org.apache.hadoop" name="hadoop-core" rev="0.20.2-cdh3u1">
+        <exclude name="ant"/>
+        <exclude name="hadoop-ant"/>
+    </dependency>
+    <dependency org="edu.umd" name="cloud9" rev="1.2.10">
+        <exclude name="ant"/>
+        <exclude org="org.apache.hadoop"/>
+        <exclude org="com.cloudera.hadoop"/>
+        <exclude org="fastutil"/>
+    </dependency>
+  </dependencies>
+</ivy-module>
