@@ -15,7 +15,7 @@
         <exclude name="ant"/>
         <exclude org="org.apache.hadoop"/>
         <exclude org="com.cloudera.hadoop"/>
-	<exclude org="spy"/>
+        <exclude org="spy"/>
         <exclude org="fastutil"/>
     </dependency>
   </dependencies>
