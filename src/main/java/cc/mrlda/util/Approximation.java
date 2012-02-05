@@ -1,7 +1,6 @@
 package cc.mrlda.util;
 
 public class Approximation {
-
   /**
    * Approximate digamma of x.
    * 
@@ -48,7 +47,7 @@ public class Approximation {
       p = 1 / (x * x) + p;
     }
 
-    if (new Double(p).equals(Double.NaN)) {
+    if (Double.isNaN(p)) {
       throw new ArithmeticException("invalid input at trigamma function: " + x);
     }
 
@@ -70,7 +69,7 @@ public class Approximation {
     z = (x - 0.5) * Math.log(x) - x + 0.918938533204673 + z - Math.log(x - 1) - Math.log(x - 2)
         - Math.log(x - 3) - Math.log(x - 4) - Math.log(x - 5) - Math.log(x - 6);
 
-    if (new Double(z).equals(Double.NaN)) {
+    if (Double.isNaN(z)) {
       throw new ArithmeticException("invalid input at lnGamma function: " + x);
     }
 
