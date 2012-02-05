@@ -18,5 +18,8 @@
         <exclude org="spy"/>
         <exclude org="fastutil"/>
     </dependency>
+    <dependency org="com.google.guava" name="guava" rev="11.0.1" >
+        <artifact name="guava" type="jar"/>
+    </dependency>
   </dependencies>
 </ivy-module>
