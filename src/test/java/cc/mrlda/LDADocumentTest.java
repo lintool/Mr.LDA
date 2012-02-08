@@ -133,6 +133,11 @@ public class LDADocumentTest {
     }
   }
 
+  /**
+   * Test
+   * 
+   * @throws IOException
+   */
   @Test
   public void testSerialize4() throws IOException {
     HMapII hmap1 = null;
@@ -157,22 +162,55 @@ public class LDADocumentTest {
     assertEquals(array2, array1);
   }
 
+  /**
+   * Test assigning new gamma
+   * 
+   * @throws IOException
+   */
   @Test
-  public void testSerializeEmpty() throws IOException {
-    HMapIIW m1 = new HMapIIW();
+  public void testSerialize5() throws IOException {
+    HMapII hmap1 = new HMapII();
+    hmap1.put(1, 22);
+    hmap1.put(2, 5);
+    hmap1.put(3, 10);
 
-    // make sure this does nothing
-    m1.decode();
+    LDADocument doc1 = new LDADocument(hmap1);
+    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTypes(), 3);
+    assertEquals(doc1.getNumberOfTopics(), 0);
+    assertEquals(doc1.getGamma(), null);
 
-    assertTrue(m1.size() == 0);
+    float[] array1 = new float[2];
+    array1[0] = 0.238573f;
+    array1[1] = 1.59382f;
 
-    HMapIFW m2 = HMapIFW.create(m1.serialize());
+    doc1.setGamma(array1);
+    for (int i = 0; i < doc1.getGamma().length; i++) {
+      assertEquals(doc1.getGamma()[i], array1[i], PRECISION);
+    }
 
-    assertTrue(m2.size() == 0);
+    LDADocument doc2 = LDADocument.create(doc1.serialize());
+    HMapII hmap2 = doc2.getContent();
+    float[] array2 = doc2.getGamma();
+
+    assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
+    assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
+    assertEquals(doc2.getNumberOfTopics(), doc1.getNumberOfTopics());
+    assertEquals(hmap2.size(), hmap1.size());
+    assertEquals(array2.length, array1.length);
+
+    Iterator<Integer> itr = hmap2.keySet().iterator();
+    while (itr.hasNext()) {
+      int key = itr.next();
+      assertEquals(hmap2.get(key), hmap1.get(key));
+    }
+
+    for (int i = 0; i < array2.length; i++) {
+      assertEquals(array2[i], array1[i], PRECISION);
+    }
   }
 
   public static junit.framework.Test suite() {
-    return new JUnit4TestAdapter(HMapIIWTest.class);
+    return new JUnit4TestAdapter(LDADocumentTest.class);
   }
-
 }

@@ -8,7 +8,6 @@ import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Iterator;
 
 import org.apache.hadoop.io.Writable;
@@ -17,6 +16,10 @@ import edu.umd.cloud9.util.map.HMapII;
 import edu.umd.cloud9.util.map.MapII;
 
 public class LDADocument implements Writable, Cloneable, Serializable {
+  /**
+   * 
+   */
+  private static final long serialVersionUID = 752244298258266755L;
 
   /**
    * 
@@ -52,18 +55,26 @@ public class LDADocument implements Writable, Cloneable, Serializable {
   @Override
   public String toString() {
     StringBuilder document = new StringBuilder("content:\t");
-    Iterator<Integer> itr = this.content.keySet().iterator();
-    while (itr.hasNext()) {
-      int id = itr.next();
-      document.append(id);
-      document.append(":");
-      document.append(content.get(id));
-      document.append(" ");
+    if (content == null) {
+      document.append("null");
+    } else {
+      Iterator<Integer> itr = this.content.keySet().iterator();
+      while (itr.hasNext()) {
+        int id = itr.next();
+        document.append(id);
+        document.append(":");
+        document.append(content.get(id));
+        document.append(" ");
+      }
     }
     document.append("\ngamma:\t");
-    for (float value : gamma) {
-      document.append(value);
-      document.append(" ");
+    if (gamma == null) {
+      document.append("null");
+    } else {
+      for (float value : gamma) {
+        document.append(value);
+        document.append(" ");
+      }
     }
 
     return document.toString();
@@ -89,9 +100,11 @@ public class LDADocument implements Writable, Cloneable, Serializable {
 
   public LDADocument(HMapII document) {
     this.content = document;
-    Iterator<Integer> itr = this.content.values().iterator();
-    while (itr.hasNext()) {
-      numberOfWords += itr.next();
+    if (document != null) {
+      Iterator<Integer> itr = this.content.values().iterator();
+      while (itr.hasNext()) {
+        numberOfWords += itr.next();
+      }
     }
   }
 
@@ -145,7 +158,7 @@ public class LDADocument implements Writable, Cloneable, Serializable {
       gamma = null;
     } else {
       gamma = new float[numTopics];
-      for (int i = 0; i < numEntries; i++) {
+      for (int i = 0; i < numTopics; i++) {
         gamma[i] = in.readFloat();
       }
     }
