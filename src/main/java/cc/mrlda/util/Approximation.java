@@ -1,5 +1,7 @@
 package cc.mrlda.util;
 
+import com.google.common.base.Preconditions;
+
 public class Approximation {
   /**
    * Approximate digamma of x.
@@ -50,32 +52,13 @@ public class Approximation {
       p = 1 / (x * x) + p;
     }
 
+    Preconditions.checkArgument(!Double.isNaN(p), new ArithmeticException(
+        "invalid input at trigamma function: " + x));
+
     if (Double.isNaN(p)) {
       throw new ArithmeticException("invalid input at trigamma function: " + x);
     }
 
     return p;
-  }
-
-  /**
-   * Approximate the lngamma of x.
-   * 
-   * @param x
-   * @return
-   */
-  public static double lnGamma(double x) {
-    double z = 1 / (x * x);
-
-    x = x + 6;
-    z = (((-0.000595238095238 * z + 0.000793650793651) * z - 0.002777777777778) * z + 0.083333333333333)
-        / x;
-    z = (x - 0.5) * Math.log(x) - x + 0.918938533204673 + z - Math.log(x - 1) - Math.log(x - 2)
-        - Math.log(x - 3) - Math.log(x - 4) - Math.log(x - 5) - Math.log(x - 6);
-
-    if (Double.isNaN(z)) {
-      throw new ArithmeticException("invalid input at lnGamma function: " + x);
-    }
-
-    return z;
   }
 }

@@ -33,7 +33,7 @@ import edu.umd.cloud9.io.map.HMapIIWTest;
 import edu.umd.cloud9.util.map.HMapII;
 
 public class LDADocumentTest {
-  public static float PRECISION = 1e-6f;
+  public static double PRECISION = 1e-12;
 
   public void testConstructor1() {
     LDADocument doc1 = new LDADocument();
