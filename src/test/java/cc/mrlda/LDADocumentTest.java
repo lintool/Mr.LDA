@@ -35,6 +35,103 @@ import edu.umd.cloud9.util.map.HMapII;
 public class LDADocumentTest {
   public static float PRECISION = 1e-6f;
 
+  public void testConstructor1() {
+    LDADocument doc1 = new LDADocument();
+    assertTrue(doc1.getGamma() == null);
+    assertEquals(doc1.getNumberOfTopics(), 0);
+
+    assertTrue(doc1.getContent() == null);
+    assertEquals(doc1.getNumberOfTypes(), 0);
+    assertEquals(doc1.getNumberOfWords(), 0);
+  }
+
+  public void testConstructor2() {
+    HMapII hmap1 = new HMapII();
+    hmap1.put(1, 22);
+    hmap1.put(2, 5);
+    hmap1.put(3, 10);
+
+    LDADocument doc1 = new LDADocument(hmap1);
+    assertTrue(doc1.getGamma() == null);
+    assertEquals(doc1.getNumberOfTopics(), 0);
+
+    assertTrue(doc1.getContent() != null);
+    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTypes(), hmap1.size());
+
+    Iterator<Integer> itr = doc1.getContent().keySet().iterator();
+    while (itr.hasNext()) {
+      int key = itr.next();
+      assertEquals(doc1.getContent().get(key), hmap1.get(key));
+    }
+  }
+
+  public void testConstructor3() {
+    HMapII hmap1 = new HMapII();
+    hmap1.put(1, 22);
+    hmap1.put(2, 5);
+    hmap1.put(3, 10);
+
+    float[] array1 = new float[2];
+    array1[0] = 0.238573f;
+    array1[1] = 1.59382f;
+
+    LDADocument doc1 = new LDADocument(hmap1, array1);
+    assertTrue(doc1.getGamma() != null);
+    assertEquals(doc1.getNumberOfTopics(), array1.length);
+
+    for (int i = 0; i < doc1.getGamma().length; i++) {
+      assertEquals(doc1.getGamma()[i], array1[i], PRECISION);
+    }
+
+    assertTrue(doc1.getContent() != null);
+    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTypes(), hmap1.size());
+
+    Iterator<Integer> itr = doc1.getContent().keySet().iterator();
+    while (itr.hasNext()) {
+      int key = itr.next();
+      assertEquals(doc1.getContent().get(key), hmap1.get(key));
+    }
+  }
+
+  public void testSetDocument() {
+    LDADocument doc1 = new LDADocument();
+    assertTrue(doc1.getGamma() == null);
+    assertEquals(doc1.getNumberOfTopics(), 0);
+
+    assertTrue(doc1.getContent() == null);
+    assertEquals(doc1.getNumberOfTypes(), 0);
+    assertEquals(doc1.getNumberOfWords(), 0);
+
+    HMapII hmap1 = new HMapII();
+    hmap1.put(1, 22);
+    hmap1.put(2, 5);
+    hmap1.put(3, 10);
+
+    doc1.setDocument(hmap1);
+    assertTrue(doc1.getGamma() == null);
+    assertEquals(doc1.getNumberOfTopics(), 0);
+
+    assertTrue(doc1.getContent() != null);
+    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTypes(), hmap1.size());
+
+    Iterator<Integer> itr = doc1.getContent().keySet().iterator();
+    while (itr.hasNext()) {
+      int key = itr.next();
+      assertEquals(doc1.getContent().get(key), hmap1.get(key));
+    }
+
+    doc1.setDocument(null);
+    assertTrue(doc1.getGamma() == null);
+    assertEquals(doc1.getNumberOfTopics(), 0);
+
+    assertTrue(doc1.getContent() == null);
+    assertEquals(doc1.getNumberOfTypes(), 0);
+    assertEquals(doc1.getNumberOfWords(), 0);
+  }
+
   @Test
   public void testSerialize1() throws IOException {
     HMapII hmap1 = new HMapII();
