@@ -307,13 +307,13 @@ public class MyMapper extends MapReduceBase implements
             if (path.getName().startsWith(Settings.BETA)) {
               // TODO: check whether seeded beta is valid, i.e., a true probability distribution
               Preconditions.checkArgument(beta == null, "Beta matrix was initialized already...");
-              beta = VariationalInference.parseBeta(sequenceFileReader, numberOfTopics,
+              beta = VariationalInference.importBeta(sequenceFileReader, numberOfTopics,
                   numberOfTerms);
             } else if (path.getName().startsWith(Settings.ALPHA)) {
               Preconditions.checkArgument(alpha == null, "Alpha vector was initialized already...");
 
               // TODO: check the validity of alpha
-              alpha = VariationalInference.parseAlpha(sequenceFileReader, numberOfTopics);
+              alpha = VariationalInference.importAlpha(sequenceFileReader, numberOfTopics);
               double sumLnGammaAlpha = 0;
               for (double value : alpha) {
                 sumLnGammaAlpha += Gamma.logGamma(value);

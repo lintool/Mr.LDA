@@ -137,7 +137,7 @@ public class MyReducer extends MapReduceBase implements
               Preconditions.checkArgument(lambdaMap == null,
                   "Lambda matrix was initialized already...");
 
-              lambdaMap = parseEta(sequenceFileReader);
+              lambdaMap = importEta(sequenceFileReader);
             } else {
               throw new IllegalArgumentException("Unexpected file in distributed cache: "
                   + path.getName());
@@ -164,7 +164,7 @@ public class MyReducer extends MapReduceBase implements
     multipleOutputs.close();
   }
 
-  public static HMapIV<HashSet<Integer>> parseEta(SequenceFile.Reader sequenceFileReader)
+  public static HMapIV<HashSet<Integer>> importEta(SequenceFile.Reader sequenceFileReader)
       throws IOException {
     HMapIV<HashSet<Integer>> lambdaMap = new HMapIV<HashSet<Integer>>();
 
