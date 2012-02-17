@@ -44,5 +44,6 @@
 	<classpathentry kind="lib" path="lib/servlet-api-2.5-20081211.jar"/>
 	<classpathentry kind="lib" path="lib/servlet-api-2.5.jar"/>
 	<classpathentry kind="lib" path="lib/xmlenc-0.52.jar"/>
+	<classpathentry kind="lib" path="lib/lucene-core-3.5.0.jar"/>
 	<classpathentry kind="output" path="build"/>
 </classpath>
