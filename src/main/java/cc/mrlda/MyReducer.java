@@ -31,18 +31,16 @@ import edu.umd.cloud9.util.map.HMapIV;
 
 public class MyReducer extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, IntWritable, DoubleWritable> {
-  private static final Logger sLogger = Logger.getLogger(MyReducer.class);
+  static HMapIV<HashSet<Integer>> lambdaMap = null;
+  static int numberOfTerms;
+  static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
 
-  public static HMapIV<HashSet<Integer>> lambdaMap = null;
-  public static int numberOfTerms;
-  public static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
+  static boolean learning = Settings.LEARNING_MODE;
 
   int topicIndex = 0;
   double normalizeFactor = 0;
 
-  public static boolean learning = Settings.LEARNING_MODE;
-
-  private MultipleOutputs multipleOutputs;
+  MultipleOutputs multipleOutputs;
   OutputCollector<PairOfIntFloat, HMapIFW> outputBeta;
 
   IntWritable intWritable = new IntWritable();

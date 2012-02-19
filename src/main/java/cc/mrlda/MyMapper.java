@@ -33,27 +33,27 @@ import edu.umd.cloud9.util.map.HMapIV;
 
 public class MyMapper extends MapReduceBase implements
     Mapper<IntWritable, LDADocument, PairOfInts, DoubleWritable> {
-  public static HMapIV<double[]> beta = null;
-  public static double[] alpha = null;
+  static HMapIV<double[]> beta = null;
+  static double[] alpha = null;
 
-  public static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
-  public static int numberOfTerms = 0;
+  static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
+  static int numberOfTerms = 0;
 
-  public static double localConvergeForGamma = Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD;
-  public static double localConvergeForCriteria = Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_CRITERIA;
-  public static int localConvergeForIteration = Settings.DEFAULT_GAMMA_UPDATE_MAXIMUM_ITERATION;
+  static double localConvergeForGamma = Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD;
+  static double localConvergeForCriteria = Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_CRITERIA;
+  static int localConvergeForIteration = Settings.DEFAULT_GAMMA_UPDATE_MAXIMUM_ITERATION;
 
-  public static boolean learning = Settings.LEARNING_MODE;
-  public static boolean randomStartGamma = Settings.RANDOM_START_GAMMA;
+  static boolean learning = Settings.LEARNING_MODE;
+  static boolean randomStartGamma = Settings.RANDOM_START_GAMMA;
 
   // public static boolean informedPrior = false;
-  public static double likelihoodAlpha = 0;
-  public static double alphaSum = 0;
+  static double likelihoodAlpha = 0;
+  static double alphaSum = 0;
 
-  public PairOfInts outputKey = new PairOfInts();
-  public DoubleWritable outputValue = new DoubleWritable();
+  PairOfInts outputKey = new PairOfInts();
+  DoubleWritable outputValue = new DoubleWritable();
 
-  private MultipleOutputs multipleOutputs;
+  MultipleOutputs multipleOutputs;
   OutputCollector<IntWritable, LDADocument> outputDocument;
 
   double[] tempBeta = null;
@@ -67,7 +67,6 @@ public class MyMapper extends MapReduceBase implements
   @SuppressWarnings("deprecation")
   public void map(IntWritable key, LDADocument value,
       OutputCollector<PairOfInts, DoubleWritable> output, Reporter reporter) throws IOException {
-
     double likelihoodPhi = 0;
     double likelihoodGamma = 0;
 
@@ -123,11 +122,9 @@ public class MyMapper extends MapReduceBase implements
         int termCounts = content.get(termID);
         // acquire the corresponding beta vector for this term
         tempBeta = retrieveBeta(numberOfTopics, beta, termID, numberOfTerms);
-
         phi = new double[numberOfTopics];
         likelihoodPhi += updatePhi(numberOfTopics, termCounts, tempBeta, tempGamma, phi,
             updateGamma);
-
         phiTable.put(termID, phi);
       }
 
@@ -255,6 +252,19 @@ public class MyMapper extends MapReduceBase implements
     return convergePhi;
   }
 
+  /**
+   * Retrieve the beta array given the beta map and term index. If {@link beta} is null or
+   * {@link termID} was not found in {@link beta}, this method will pop a message to
+   * {@link System.out} and initialize it to avoid duplicate initialization in the future.
+   * 
+   * @param numberOfTopics
+   * @param beta
+   * @param termID
+   * @param numberOfTerms size of vocabulary in the whole corpus, used to initialize beta of the
+   *        unloaded or non-initialized terms.
+   * @return a double array of size {@link numberOfTopics} that stores the beta value of term index
+   *         in log scale.
+   */
   public static double[] retrieveBeta(int numberOfTopics, HMapIV<double[]> beta, int termID,
       int numberOfTerms) {
     if (beta == null) {

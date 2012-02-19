@@ -15,7 +15,7 @@ import edu.umd.cloud9.io.pair.PairOfInts;
 public class MyCombiner extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, PairOfInts, DoubleWritable> {
 
-  public DoubleWritable outputValue = new DoubleWritable();
+  DoubleWritable outputValue = new DoubleWritable();
 
   public void reduce(PairOfInts key, Iterator<DoubleWritable> values,
       OutputCollector<PairOfInts, DoubleWritable> output, Reporter reporter) throws IOException {
