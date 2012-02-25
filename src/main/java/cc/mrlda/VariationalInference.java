@@ -9,6 +9,7 @@ import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
@@ -37,17 +38,12 @@ import cc.mrlda.util.Approximation;
 import cc.mrlda.util.FileMerger;
 
 import com.google.common.base.Preconditions;
-import com.sun.xml.internal.rngom.parse.compact.ParseException;
 
 import edu.umd.cloud9.io.map.HMapIFW;
 import edu.umd.cloud9.io.map.HMapIIW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.util.map.HMapIV;
-
-/**
- * @author kzhai
- */
 
 public class VariationalInference extends Configured implements Tool {
   private final Logger sLogger = Logger.getLogger(VariationalInference.class);
@@ -87,25 +83,29 @@ public class VariationalInference extends Configured implements Tool {
             "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
         .create(Settings.REDUCER_OPTION));
 
-    options.addOption(OptionBuilder.withArgName("property=value").hasArgs(2).withValueSeparator()
-        .withDescription("assign value for given property").create("D"));
+    // options.addOption(OptionBuilder.withArgName("property=value").hasArgs(2).withValueSeparator()
+    // .withDescription("assign value for given property").create("D"));
 
-    options.addOption(Settings.INFERENCE_MODE_OPTION, false, "run program in inference model");
+    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArgs(2)
+        .withValueSeparator(Settings.STAR)
+        .withDescription("run program in inference mode, i.e. test held-out likelihood")
+        .create(Settings.INFERENCE_MODE_OPTION));
+
+    options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
+        .withDescription("the iteration/index of current model parameters")
+        .create(Settings.RESUME_OPTION));
+
     options.addOption(FileMerger.LOCAL_MERGE_OPTION, false,
         "merge output files and parameters locally, recommend for small scale cluster");
     options.addOption(Settings.RANDOM_START_GAMMA_OPTION, false,
         "start gamma from random point every iteration");
 
-    JobConf conf = new JobConf(VariationalInference.class);
-
-    FileSystem fs = FileSystem.get(conf);
-
     String inputPath = null;
     String outputPath = null;
 
-    boolean training = Settings.LEARNING_MODE;
     boolean localMerge = FileMerger.LOCAL_MERGE;
     boolean randomStartGamma = Settings.RANDOM_START_GAMMA;
+
     int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
     int numberOfIterations = Settings.DEFAULT_GLOBAL_MAXIMUM_ITERATION;
     int mapperTasks = Settings.DEFAULT_NUMBER_OF_MAPPERS;
@@ -113,6 +113,11 @@ public class VariationalInference extends Configured implements Tool {
 
     int numberOfTerms = 0;
     int numberOfDocuments = 0;
+
+    boolean resume = Settings.RESUME;
+    String modelPath = null;
+    int snapshotIndex = 0;
+    boolean training = Settings.LEARNING_MODE;
 
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -142,8 +147,25 @@ public class VariationalInference extends Configured implements Tool {
             + " not initialized...");
       }
 
+      if (line.hasOption(Settings.RESUME_OPTION)) {
+        snapshotIndex = Integer.parseInt(line.getOptionValue(Settings.RESUME_OPTION));
+        if (!line.hasOption(Settings.INFERENCE_MODE_OPTION)) {
+          resume = true;
+        }
+      }
+
       if (line.hasOption(Settings.INFERENCE_MODE_OPTION)) {
+        if (!line.hasOption(Settings.RESUME_OPTION)) {
+          throw new ParseException("Model index missing: " + Settings.RESUME_OPTION
+              + " was not initialized...");
+        }
+
+        modelPath = line.getOptionValue(Settings.INFERENCE_MODE_OPTION);
+        if (!modelPath.endsWith(Path.SEPARATOR)) {
+          modelPath += Path.SEPARATOR;
+        }
         training = false;
+        resume = false;
       }
 
       if (line.hasOption(FileMerger.LOCAL_MERGE_OPTION)) {
@@ -153,6 +175,7 @@ public class VariationalInference extends Configured implements Tool {
       if (line.hasOption(Settings.RANDOM_START_GAMMA_OPTION)) {
         randomStartGamma = true;
       }
+
       if (line.hasOption(Settings.TOPIC_OPTION)) {
         numberOfTopics = Integer.parseInt(line.getOptionValue(Settings.TOPIC_OPTION));
       }
@@ -161,6 +184,7 @@ public class VariationalInference extends Configured implements Tool {
         numberOfIterations = Integer.parseInt(line.getOptionValue(Settings.ITERATION_OPTION));
       }
 
+      // TODO: need to relax this contrain in the future
       if (line.hasOption(Settings.TERM_OPTION)) {
         numberOfTerms = Integer.parseInt(line.getOptionValue(Settings.TERM_OPTION));
       } else {
@@ -209,58 +233,77 @@ public class VariationalInference extends Configured implements Tool {
     // int numberOfTopics, int numberOfIterations, int mapperTasks, int reducerTasks,
     // int numberOfTerms, int numberOfDocuments) throws Exception {
 
+    JobConf conf = new JobConf(VariationalInference.class);
+    FileSystem fs = FileSystem.get(conf);
+
     // delete the overall output path
     Path outputDir = new Path(outputPath);
-    if (fs.exists(outputDir)) {
+    if (!resume && fs.exists(outputDir)) {
       fs.delete(outputDir, true);
+      fs.mkdirs(outputDir);
     }
-    fs.mkdirs(outputDir);
 
     Path inputDir = new Path(inputPath);
-
     Path tempDir = new Path(outputPath + Settings.TEMP);
 
-    String betaPath = outputPath + Settings.BETA;
-    String alphaPath = outputPath + Settings.ALPHA;
-
+    Path alphaDir = null;
     Path betaDir = null;
-    Path alphaSufficientStatisticsDir = new Path(tempDir.toString() + Path.SEPARATOR + "part-00000");
+
     Path documentGlobDir = new Path(tempDir.toString() + Path.SEPARATOR + Settings.DOCUMENT
         + Settings.STAR);
+
+    // these parameters are NOT used at all in the case of testing mode
+    Path alphaSufficientStatisticsDir = new Path(tempDir.toString() + Path.SEPARATOR + "part-00000");
     String betaGlobDir = tempDir.toString() + Path.SEPARATOR + Settings.BETA + Settings.STAR;
-
-    // initialize alpha vector randomly - if it doesn't already exist
-    Path alphaDir = new Path(alphaPath + 0);
-
-    double[] alphaVector = new double[numberOfTopics];
-    for (int i = 0; i < alphaVector.length; i++) {
-      alphaVector[i] = Math.random();
-    }
 
     SequenceFile.Reader sequenceFileReader = null;
     SequenceFile.Writer sequenceFileWriter = null;
 
-    try {
-      sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
-          DoubleWritable.class);
-      exportAlpha(sequenceFileWriter, alphaVector);
-    } finally {
-      IOUtils.closeStream(sequenceFileWriter);
+    String betaPath = outputPath + Settings.BETA;
+    String alphaPath = outputPath + Settings.ALPHA;
+    double[] alphaVector = new double[numberOfTopics];
+
+    if (!training) {
+      alphaDir = new Path(modelPath + Settings.BETA + snapshotIndex);
+      betaDir = new Path(modelPath + Settings.ALPHA + snapshotIndex);
+    } else {
+      if (!resume) {
+        // initialize alpha vector randomly - if it doesn't already exist
+        alphaDir = new Path(alphaPath + 0);
+        for (int i = 0; i < alphaVector.length; i++) {
+          alphaVector[i] = Math.random();
+        }
+        try {
+          sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
+              DoubleWritable.class);
+          exportAlpha(sequenceFileWriter, alphaVector);
+        } finally {
+          IOUtils.closeStream(sequenceFileWriter);
+        }
+      } else {
+        alphaDir = new Path(alphaPath + snapshotIndex);
+        betaDir = new Path(betaPath + snapshotIndex);
+      }
     }
 
-    boolean keepRunning = true;
-    int iterationCount = 0;
     double lastLogLikelihood = 0;
+    int iterationCount = snapshotIndex;
 
     do {
       conf = new JobConf(VariationalInference.class);
-      conf.setJobName(VariationalInference.class.getSimpleName() + " - Iteration "
-          + (iterationCount + 1));
+      if (training) {
+        conf.setJobName(VariationalInference.class.getSimpleName() + " - Iteration "
+            + (iterationCount + 1));
+      } else {
+        conf.setJobName(VariationalInference.class.getSimpleName() + " - Test");
+      }
       fs = FileSystem.get(conf);
 
       if (iterationCount != 0) {
+        Preconditions.checkArgument(fs.exists(betaDir), "Missing model parameter beta...");
         DistributedCache.addCacheFile(betaDir.toUri(), conf);
       }
+      Preconditions.checkArgument(fs.exists(alphaDir), "Missing model parameter alpha...");
       DistributedCache.addCacheFile(alphaDir.toUri(), conf);
 
       // if (lambdaPath != null && FileSystem.get(conf).exists(new Path(lambdaPath))) {
@@ -278,32 +321,22 @@ public class VariationalInference extends Configured implements Tool {
       conf.setInt(Settings.PROPERTY_PREFIX + "corpus.terms", numberOfTerms);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.train", training);
 
-      // conf.setInt("mr.lda.parameter.iteration", iterationCount);
-      // conf.setFloat("mr.lda.parameter.partition", Settings.DEFAULT_SUBSET_SIZE);
-      // conf.setBoolean("mr.lda.parameter.online", Settings.ONLINE_MODE);
-      // conf.setFloat("mr.lda.lambda.tau", Settings.DEFAULT_TAU);
-      // conf.setFloat("mr.lda.lambda.kappa", Settings.DEFAULT_KAPPA);
-
-      // conf.setInt("ivory.topmod.lda.beta.top.sparse", 1000);
-      // conf.setFloat("ivory.topmod.lda.beta.smooth",
-      // Driver.DEFAULT_BETA_SMOOTH);
-
       conf.setNumMapTasks(mapperTasks);
       conf.setNumReduceTasks(reducerTasks);
 
-      // MultipleOutputs.addMultiNamedOutput(conf, Driver.GAMMA,
-      // TextOutputFormat.class, IntWritable.class, FloatWritable.class);
-      MultipleOutputs.addMultiNamedOutput(conf, Settings.BETA, SequenceFileOutputFormat.class,
-          PairOfIntFloat.class, HMapIFW.class);
+      if (training) {
+        MultipleOutputs.addMultiNamedOutput(conf, Settings.BETA, SequenceFileOutputFormat.class,
+            PairOfIntFloat.class, HMapIFW.class);
+      }
       if (!randomStartGamma) {
         MultipleOutputs.addMultiNamedOutput(conf, Settings.DOCUMENT,
             SequenceFileOutputFormat.class, IntWritable.class, LDADocument.class);
       }
 
-      conf.setMapperClass(MyMapper.class);
-      conf.setReducerClass(MyReducer.class);
-      conf.setCombinerClass(MyCombiner.class);
-      conf.setPartitionerClass(MyPartitioner.class);
+      conf.setMapperClass(DocumentMapper.class);
+      conf.setReducerClass(VocabularyReducer.class);
+      conf.setCombinerClass(VocabularyCombiner.class);
+      conf.setPartitionerClass(VocabularyPartitioner.class);
 
       conf.setMapOutputKeyClass(PairOfInts.class);
       conf.setMapOutputValueClass(DoubleWritable.class);
@@ -332,8 +365,12 @@ public class VariationalInference extends Configured implements Tool {
       numberOfDocuments = (int) counters.findCounter(ParamCounter.TOTAL_DOC).getCounter();
       sLogger.info("Total number of documents is: " + numberOfDocuments);
 
-      // merge gamma (for alpha update) first and move document to the
-      // correct directory
+      // break out of the loop if in testing mode
+      if (!training) {
+        break;
+      }
+
+      // merge gamma (for alpha update) first and move document to the correct directory
       if (!randomStartGamma) {
         if (iterationCount != 0) {
           // remove old gamma and document output
@@ -349,41 +386,37 @@ public class VariationalInference extends Configured implements Tool {
         }
       }
 
-      // update alpha
+      // update alpha's
       try {
+        // load old alpha's into the system
         sequenceFileReader = new SequenceFile.Reader(fs, alphaDir, conf);
         alphaVector = importAlpha(sequenceFileReader, numberOfTopics);
         sLogger.info("Successfully load the current alpha vector from file " + alphaDir);
-      } finally {
-        IOUtils.closeStream(sequenceFileReader);
-      }
 
-      // load the gamma tokens into the system
-      double[] alphaSufficientStatistics = null;
-      try {
+        // load alpha sufficient statistics into the system
+        double[] alphaSufficientStatistics = null;
         sequenceFileReader = new SequenceFile.Reader(fs, alphaSufficientStatisticsDir, conf);
         alphaSufficientStatistics = importAlpha(sequenceFileReader, numberOfTopics);
         sLogger.info("Successfully load the alpha sufficient statistics tokens.");
-      } finally {
-        IOUtils.closeStream(sequenceFileReader);
-      }
 
-      alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
-          alphaSufficientStatistics);
+        // update alpha
+        alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
+            alphaSufficientStatistics);
 
-      // output new alpha to the file
-      alphaDir = new Path(alphaPath + (iterationCount + 1));
-      try {
+        // output the new alpha's to the system
+        alphaDir = new Path(alphaPath + (iterationCount + 1));
         sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
             DoubleWritable.class);
         exportAlpha(sequenceFileWriter, alphaVector);
+
+        // remove all the alpha sufficient statistics
+        fs.deleteOnExit(alphaSufficientStatisticsDir);
       } finally {
+        IOUtils.closeStream(sequenceFileReader);
         IOUtils.closeStream(sequenceFileWriter);
       }
 
-      // note: must remove gammaDir
-      fs.delete(alphaSufficientStatisticsDir, true);
-
+      // merge beta's
       if (localMerge) {
         betaDir = FileMerger.mergeSequenceFilesLocal(betaGlobDir, betaPath + (iterationCount + 1),
             PairOfIntFloat.class, HMapIFW.class, true);
@@ -392,19 +425,16 @@ public class VariationalInference extends Configured implements Tool {
             reducerTasks, PairOfIntFloat.class, HMapIIW.class, true);
       }
 
-      sLogger.info("Converge criteria is " + logLikelihood);
+      sLogger.info("Log likelihood after iteration " + (iterationCount + 1) + " is "
+          + logLikelihood);
       if (Math.abs((lastLogLikelihood - logLikelihood) / lastLogLikelihood) <= Settings.DEFAULT_GLOBAL_CONVERGE_CRITERIA) {
-        // keepRunning = false;
-        sLogger.info("Running out of converge criteria for global converge...");
+        sLogger.info("Model converged after " + (iterationCount + 1) + " iterations...");
+        break;
       }
       lastLogLikelihood = logLikelihood;
 
       iterationCount++;
-      if (iterationCount >= numberOfIterations) {
-        keepRunning = false;
-        sLogger.info("Running out of iteration for global converge...");
-      }
-    } while (keepRunning);
+    } while (iterationCount < numberOfIterations);
 
     return 0;
   }
@@ -503,7 +533,11 @@ public class VariationalInference extends Configured implements Tool {
         alphaVector = alphaVectorUpdate;
       }
     } catch (IllegalArgumentException iae) {
+      System.err.println(iae.getMessage());
+      iae.printStackTrace();
     } catch (ArithmeticException ae) {
+      System.err.println(ae.getMessage());
+      ae.printStackTrace();
     }
 
     return alphaVector;
@@ -561,7 +595,11 @@ public class VariationalInference extends Configured implements Tool {
         }
       }
     } catch (IllegalArgumentException iae) {
+      System.err.println(iae.getMessage());
+      iae.printStackTrace();
     } catch (ArithmeticException ae) {
+      System.err.println(ae.getMessage());
+      ae.printStackTrace();
     }
 
     return alphaUpdate;

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -63,19 +64,19 @@ public class TokenizeDocument extends Configured implements Tool {
 
   public static class TokenizeMapper extends MapReduceBase implements
       Mapper<LongWritable, Text, Text, PairOfInts> {
-    Text token = new Text();
-    PairOfInts counts = new PairOfInts();
+    private Text token = new Text();
+    private PairOfInts counts = new PairOfInts();
 
-    OutputCollector<Text, HMapSIW> outputDocument = null;
-    MultipleOutputs multipleOutputs = null;
+    private OutputCollector<Text, HMapSIW> outputDocument = null;
+    private MultipleOutputs multipleOutputs = null;
 
-    StandardAnalyzer standardAnalyzer = new StandardAnalyzer(Version.LUCENE_35);
-    TokenStream stream = null;
+    private static final StandardAnalyzer standardAnalyzer = new StandardAnalyzer(Version.LUCENE_35);
+    private TokenStream stream = null;
 
-    Text docTitle = new Text();
-    HMapSIW docContent = null;
-    Iterator<String> itr = null;
-    String temp = null;
+    private Text docTitle = new Text();
+    private HMapSIW docContent = null;
+    private Iterator<String> itr = null;
+    private String temp = null;
 
     @SuppressWarnings("deprecation")
     public void map(LongWritable key, Text value, OutputCollector<Text, PairOfInts> output,
@@ -120,7 +121,7 @@ public class TokenizeDocument extends Configured implements Tool {
 
   public static class TokenizeCombiner extends MapReduceBase implements
       Reducer<Text, PairOfInts, Text, PairOfInts> {
-    PairOfInts counts = new PairOfInts();
+    private PairOfInts counts = new PairOfInts();
 
     public void reduce(Text key, Iterator<PairOfInts> values,
         OutputCollector<Text, PairOfInts> output, Reporter reporter) throws IOException {
@@ -140,7 +141,7 @@ public class TokenizeDocument extends Configured implements Tool {
 
   public static class TokenizeReducer extends MapReduceBase implements
       Reducer<Text, PairOfInts, Text, PairOfInts> {
-    PairOfInts counts = new PairOfInts();
+    private PairOfInts counts = new PairOfInts();
 
     public void reduce(Text key, Iterator<PairOfInts> values,
         OutputCollector<Text, PairOfInts> output, Reporter reporter) throws IOException {
@@ -340,7 +341,7 @@ public class TokenizeDocument extends Configured implements Tool {
       sequenceFileReader = new SequenceFile.Reader(fs, tokenPath, conf);
       sequenceFileWriter = new SequenceFile.Writer(fs, conf, tokenIndexPath, IntWritable.class,
           Text.class);
-      HashMap<String, Integer> tokenIndex = importTokens(sequenceFileReader, sequenceFileWriter);
+      Map<String, Integer> tokenIndex = importTokens(sequenceFileReader, sequenceFileWriter);
 
       sequenceFileReader = new SequenceFile.Reader(fs, documentPath, conf);
       sequenceFileWriter = new SequenceFile.Writer(fs, conf, titleIndexPath, IntWritable.class,
@@ -364,9 +365,9 @@ public class TokenizeDocument extends Configured implements Tool {
     return documentIndexPath;
   }
 
-  public static HashMap<String, Integer> importTokens(SequenceFile.Reader sequenceFileReader,
+  public static Map<String, Integer> importTokens(SequenceFile.Reader sequenceFileReader,
       SequenceFile.Writer sequenceFileWriter) throws IOException {
-    HashMap<String, Integer> tokenIndex = new HashMap<String, Integer>();
+    Map<String, Integer> tokenIndex = new HashMap<String, Integer>();
     int index = 0;
 
     Text text = new Text();
@@ -386,33 +387,33 @@ public class TokenizeDocument extends Configured implements Tool {
 
   public static void exportLDADocument(SequenceFile.Reader sequenceFileReader,
       SequenceFile.Writer sequenceLDADocumentWriter, SequenceFile.Writer sequenceTitleWriter,
-      HashMap<String, Integer> tokenIndex) throws IOException {
+      Map<String, Integer> tokenIndex) throws IOException {
     Text text = new Text();
-    HMapSIW hmapSIW = new HMapSIW();
+    HMapSIW map = new HMapSIW();
 
     Iterator<String> itr = null;
     String temp = null;
 
-    HMapII hmapII = new HMapII();
+    HMapII context = new HMapII();
     LDADocument ldaDocument = new LDADocument();
-    IntWritable intWritable = new IntWritable();
+    IntWritable title = new IntWritable();
     int index = 0;
 
-    while (sequenceFileReader.next(text, hmapSIW)) {
-      hmapII.clear();
-      itr = hmapSIW.keySet().iterator();
+    while (sequenceFileReader.next(text, map)) {
+      context.clear();
+      itr = map.keySet().iterator();
       while (itr.hasNext()) {
         temp = itr.next();
         Preconditions.checkArgument(tokenIndex.containsKey(temp), "How surprise? Token " + temp
             + " not found in the index file...");
-        hmapII.put(tokenIndex.get(temp), hmapSIW.get(temp));
+        context.put(tokenIndex.get(temp), map.get(temp));
       }
-      ldaDocument.setDocument(hmapII);
+      ldaDocument.setDocument(context);
 
       index++;
-      intWritable.set(index);
-      sequenceTitleWriter.append(intWritable, text);
-      sequenceLDADocumentWriter.append(intWritable, hmapII);
+      title.set(index);
+      sequenceTitleWriter.append(title, text);
+      sequenceLDADocumentWriter.append(title, context);
     }
   }
 
