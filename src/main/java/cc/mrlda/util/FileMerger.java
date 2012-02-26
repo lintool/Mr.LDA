@@ -26,12 +26,15 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.mapred.TextInputFormat;
+import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.mapred.lib.IdentityMapper;
 import org.apache.hadoop.mapred.lib.IdentityReducer;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
+import cc.mrlda.Settings;
 import cc.mrlda.VariationalInference;
 
 import com.google.common.base.Preconditions;
@@ -46,14 +49,26 @@ public class FileMerger extends Configured implements Tool {
   public static final boolean LOCAL_MERGE = false;
   public static final String DELETE_SOURCE_OPTION = "deletesource";
   public static final boolean DELETE_SOURCE = false;
+  public static final String TEXT_FILE_INPUT_FORMAT = "textformat";
+  public static final boolean TEXT_FILE_INPUT = false;
 
-  public static final String KEY_CLASS = "key.class";
-  public static final String VALUE_CLASS = "value.class";
-
-  public static final String FILE_INPUT_FORMAT_CLASS = "file.input.format.class";
-  public static final String FILE_OUTPUT_FORMAT_CLASS = "file.output.format.class";
+  // public static final String KEY_CLASS = "key.class";
+  // public static final String VALUE_CLASS = "value.class";
+  //
+  // public static final String FILE_INPUT_FORMAT_CLASS = "file.input.format.class";
+  // public static final String FILE_OUTPUT_FORMAT_CLASS = "file.output.format.class";
 
   public static final String FILE_CONTENT_DELIMITER = "";
+
+  public static Path mergeTextFiles(String inputFiles, String outputFile, int numberOfMappers,
+      boolean deleteSource) throws Exception {
+    if (numberOfMappers <= 0) {
+      return mergeTextFilesLocal(inputFiles, outputFile, deleteSource);
+    } else {
+      return mergeFilesDistribute(inputFiles, outputFile, numberOfMappers, LongWritable.class,
+          Text.class, TextInputFormat.class, TextOutputFormat.class, deleteSource);
+    }
+  }
 
   /**
    * @param inputFiles a glob expression of the files to be merged
@@ -76,6 +91,17 @@ public class FileMerger extends Configured implements Tool {
     sLogger.info("Successfully merge " + inputPath.toString() + " to " + outputFile);
 
     return outputPath;
+  }
+
+  public static Path mergeSequenceFiles(String inputFiles, String outputFile, int numberOfMappers,
+      Class<? extends Writable> keyClass, Class<? extends Writable> valueClass, boolean deleteSource)
+      throws Exception {
+    if (numberOfMappers <= 0) {
+      return mergeSequenceFilesLocal(inputFiles, outputFile, keyClass, valueClass, deleteSource);
+    } else {
+      return mergeFilesDistribute(inputFiles, outputFile, numberOfMappers, keyClass, valueClass,
+          SequenceFileInputFormat.class, SequenceFileOutputFormat.class, deleteSource);
+    }
   }
 
   public static Path mergeSequenceFilesLocal(String inputFiles, String outputFile,
@@ -119,11 +145,6 @@ public class FileMerger extends Configured implements Tool {
     sLogger.info("Successfully merge " + inputPath.toString() + " to " + outputFile);
 
     return outputPath;
-  }
-
-  public static Path mergeFilesLocal(String inputFiles, String outputFile, boolean deleteSource,
-      boolean sequenceFile) throws IOException {
-    return mergeFilesLocal(inputFiles, outputFile, deleteSource, true);
   }
 
   public static Path mergeFilesDistribute(String inputFiles, String outputFile,
@@ -187,18 +208,6 @@ public class FileMerger extends Configured implements Tool {
     return outputPath;
   }
 
-  public static Path mergeFilesDistribute(String inputFiles, String outputFile,
-      int numberOfMappers, Class<? extends Writable> keyClass,
-      Class<? extends Writable> valueClass, boolean deleteSource) throws Exception {
-    return mergeFilesDistribute(inputFiles, outputFile, numberOfMappers, keyClass, valueClass,
-        SequenceFileInputFormat.class, SequenceFileOutputFormat.class, deleteSource);
-  }
-
-  public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new VariationalInference(), args);
-    System.exit(res);
-  }
-
   @Override
   public int run(String[] args) throws Exception {
     Options options = new Options();
@@ -213,18 +222,16 @@ public class FileMerger extends Configured implements Tool {
             .withArgName(Settings.INTEGER_INDICATOR)
             .hasArg()
             .withDescription(
-                "number of mappers (default - " + Settings.DEFAULT_NUMBER_OF_MAPPERS + ")")
+                "number of mappers (default to 0 and hence local merge mode, set to positive value to enable cluster merge mode)")
             .create(Settings.MAPPER_OPTION));
-
     options.addOption(OptionBuilder.withArgName("property=value").hasArgs(2).withValueSeparator()
         .withDescription("assign value for given property").create("D"));
-
-    options.addOption(LOCAL_MERGE_OPTION, false, "merge output files locally");
+    options.addOption(TEXT_FILE_INPUT_FORMAT, false, "input file in sequence format");
     options.addOption(DELETE_SOURCE_OPTION, false, "delete sources after merging");
 
-    int mapperTasks = Settings.DEFAULT_NUMBER_OF_MAPPERS;
-    boolean localMerge = LOCAL_MERGE;
+    int mapperTasks = 0;
     boolean deleteSource = DELETE_SOURCE;
+    boolean textFileFormat = TEXT_FILE_INPUT;
 
     String inputPath = "";
     String outputPath = "";
@@ -232,8 +239,8 @@ public class FileMerger extends Configured implements Tool {
     Class<? extends Writable> keyClass = LongWritable.class;
     Class<? extends Writable> valueClass = Text.class;
 
-    Class<? extends FileInputFormat> fileInputFormatClass = SequenceFileInputFormat.class;
-    Class<? extends FileOutputFormat> fileOutputFormatClass = SequenceFileOutputFormat.class;
+    // Class<? extends FileInputFormat> fileInputFormatClass = SequenceFileInputFormat.class;
+    // Class<? extends FileOutputFormat> fileOutputFormatClass = SequenceFileOutputFormat.class;
 
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -259,24 +266,22 @@ public class FileMerger extends Configured implements Tool {
             + " not initialized...");
       }
 
-      if (line.hasOption(LOCAL_MERGE_OPTION)) {
-        localMerge = true;
-      }
-
       if (line.hasOption(Settings.MAPPER_OPTION)) {
         mapperTasks = Integer.parseInt(line.getOptionValue(Settings.MAPPER_OPTION));
+        if (mapperTasks <= 0) {
+          sLogger.info("Warning: " + Settings.MAPPER_OPTION
+              + " is not positive, merge in local model...");
+          mapperTasks = 0;
+        }
       }
 
-      // if (!localMerge) {
-      // keyClass = (Class<? extends Writable>) Class.forName(line.getOptionProperties("D")
-      // .getProperty(KEY_CLASS));
-      // valueClass = (Class<? extends Writable>) Class.forName(line.getOptionProperties("D")
-      // .getProperty(VALUE_CLASS));
-      // fileInputFormatClass = (Class<? extends FileInputFormat>) Class.forName(line
-      // .getOptionProperties("D").getProperty(FILE_INPUT_FORMAT_CLASS));
-      // fileOutputFormatClass = (Class<? extends FileOutputFormat>) Class.forName(line
-      // .getOptionProperties("D").getProperty(FILE_OUTPUT_FORMAT_CLASS));
-      // }
+      if (line.hasOption(DELETE_SOURCE_OPTION)) {
+        deleteSource = true;
+      }
+
+      if (line.hasOption(TEXT_FILE_INPUT_FORMAT)) {
+        textFileFormat = true;
+      }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
       formatter.printHelp(FileMerger.class.getName(), options);
@@ -286,11 +291,38 @@ public class FileMerger extends Configured implements Tool {
       System.exit(0);
     }
 
-    // if (localMerge) {
-    // mergeFilesLocal(inputPath, outputPath, deleteSource);
-    // } else {
-    // mergeFilesDistribute(inputPath, outputPath, mapperTasks, keyClass, valueClass, deleteSource);
-    // }
+    JobConf conf = new JobConf(FileMerger.class);
+    FileSystem fs = FileSystem.get(conf);
+    Path inputFiles = new Path(inputPath);
+    Preconditions.checkArgument(fs.exists(inputFiles) && !fs.isFile(inputFiles),
+        "Invalid input path...");
+    if (!textFileFormat) {
+      FileStatus[] fileStatus = fs.globStatus(inputFiles);
+
+      SequenceFile.Reader reader = new SequenceFile.Reader(fs, fileStatus[0].getPath(),
+          fs.getConf());
+
+      try {
+        keyClass = (Class<? extends Writable>) reader.getKeyClass();
+        valueClass = (Class<? extends Writable>) reader.getValueClass();
+        sLogger.info("Key type: " + keyClass.toString());
+        sLogger.info("Value type: " + valueClass.toString() + "\n");
+      } catch (Exception e) {
+        throw new RuntimeException("Error in loading key/value class");
+      }
+    }
+
+    if (textFileFormat) {
+      mergeTextFiles(inputPath, outputPath, mapperTasks, deleteSource);
+    } else {
+      mergeSequenceFiles(inputPath, outputPath, mapperTasks, keyClass, valueClass, deleteSource);
+    }
+
     return 0;
+  }
+
+  public static void main(String[] args) throws Exception {
+    int res = ToolRunner.run(new Configuration(), new VariationalInference(), args);
+    System.exit(res);
   }
 }

@@ -172,13 +172,6 @@ public class LDADocument implements Writable, Cloneable, Serializable {
   }
 
   /**
-   * @deprecated
-   */
-  public void resetGamma() {
-    this.gamma = null;
-  }
-
-  /**
    * Returns the serialized representation of this object as a byte array.
    * 
    * @return byte array representing the serialized representation of this object
