@@ -63,7 +63,7 @@ public class FileMerger extends Configured implements Tool {
   public static Path mergeTextFiles(String inputFiles, String outputFile, int numberOfMappers,
       boolean deleteSource) throws Exception {
     if (numberOfMappers <= 0) {
-      return mergeTextFilesLocal(inputFiles, outputFile, deleteSource);
+      return mergeTextFiles(inputFiles, outputFile, deleteSource);
     } else {
       return mergeFilesDistribute(inputFiles, outputFile, numberOfMappers, LongWritable.class,
           Text.class, TextInputFormat.class, TextOutputFormat.class, deleteSource);
@@ -77,7 +77,7 @@ public class FileMerger extends Configured implements Tool {
    * @return
    * @throws IOException
    */
-  public static Path mergeTextFilesLocal(String inputFiles, String outputFile, boolean deleteSource)
+  public static Path mergeTextFiles(String inputFiles, String outputFile, boolean deleteSource)
       throws IOException {
     JobConf conf = new JobConf(FileMerger.class);
     FileSystem fs = FileSystem.get(conf);
@@ -97,14 +97,14 @@ public class FileMerger extends Configured implements Tool {
       Class<? extends Writable> keyClass, Class<? extends Writable> valueClass, boolean deleteSource)
       throws Exception {
     if (numberOfMappers <= 0) {
-      return mergeSequenceFilesLocal(inputFiles, outputFile, keyClass, valueClass, deleteSource);
+      return mergeSequenceFiles(inputFiles, outputFile, keyClass, valueClass, deleteSource);
     } else {
       return mergeFilesDistribute(inputFiles, outputFile, numberOfMappers, keyClass, valueClass,
           SequenceFileInputFormat.class, SequenceFileOutputFormat.class, deleteSource);
     }
   }
 
-  public static Path mergeSequenceFilesLocal(String inputFiles, String outputFile,
+  public static Path mergeSequenceFiles(String inputFiles, String outputFile,
       Class<? extends Writable> keyClass, Class<? extends Writable> valueClass, boolean deleteSource)
       throws IOException, InstantiationException, IllegalAccessException {
     JobConf conf = new JobConf(FileMerger.class);
@@ -298,10 +298,8 @@ public class FileMerger extends Configured implements Tool {
         "Invalid input path...");
     if (!textFileFormat) {
       FileStatus[] fileStatus = fs.globStatus(inputFiles);
-
       SequenceFile.Reader reader = new SequenceFile.Reader(fs, fileStatus[0].getPath(),
           fs.getConf());
-
       try {
         keyClass = (Class<? extends Writable>) reader.getKeyClass();
         valueClass = (Class<? extends Writable>) reader.getValueClass();

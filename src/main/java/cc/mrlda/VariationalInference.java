@@ -440,10 +440,10 @@ public class VariationalInference extends Configured implements Tool {
 
       // merge beta's
       if (localMerge) {
-        betaDir = FileMerger.mergeSequenceFilesLocal(betaGlobDir, betaPath + (iterationCount + 1),
+        betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
             PairOfIntFloat.class, HMapIFW.class, true);
       } else {
-        betaDir = FileMerger.mergeFilesDistribute(betaGlobDir, betaPath + (iterationCount + 1),
+        betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
             reducerTasks, PairOfIntFloat.class, HMapIIW.class, true);
       }
 
