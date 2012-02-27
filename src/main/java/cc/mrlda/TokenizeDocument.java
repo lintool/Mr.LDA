@@ -12,6 +12,7 @@ import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileSystem;
@@ -46,7 +47,6 @@ import org.apache.lucene.util.Version;
 import cc.mrlda.util.FileMerger;
 
 import com.google.common.base.Preconditions;
-import com.sun.xml.internal.rngom.parse.compact.ParseException;
 
 import edu.umd.cloud9.io.map.HMapSIW;
 import edu.umd.cloud9.io.pair.PairOfInts;
