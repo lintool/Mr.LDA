@@ -89,7 +89,6 @@ public class TokenizeDocument extends Configured implements Tool {
       temp = value.toString();
       int index = temp.indexOf(Settings.TAB);
       docTitle.set(temp.substring(0, index).trim());
-
       docContent = new HMapSIW();
       stream = standardAnalyzer.tokenStream("contents,",
           new StringReader(temp.substring(index + 1)));
@@ -97,11 +96,11 @@ public class TokenizeDocument extends Configured implements Tool {
       while (stream.incrementToken()) {
         docContent.increment(term.term());
       }
+      outputDocument.collect(docTitle, docContent);
 
       itr = docContent.keySet().iterator();
       while (itr.hasNext()) {
         temp = itr.next();
-
         token.set(temp);
         counts.set(1, docContent.get(temp));
         output.collect(token, counts);
@@ -185,18 +184,16 @@ public class TokenizeDocument extends Configured implements Tool {
         .withDescription(
             "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
         .create(Settings.REDUCER_OPTION));
-
     options.addOption(FileMerger.LOCAL_MERGE_OPTION, false,
         "merge output files and parameters locally");
-
-    options.addOption(FileMerger.DELETE_SOURCE_OPTION, false, "delete sources after merging");
+    // options.addOption(FileMerger.DELETE_SOURCE_OPTION, false, "delete sources after merging");
 
     String inputPath = null;
     String outputPath = null;
     int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
     boolean localMerge = FileMerger.LOCAL_MERGE;
-    boolean deleteSource = FileMerger.DELETE_SOURCE;
+    // boolean deleteSource = FileMerger.DELETE_SOURCE;
 
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -204,7 +201,7 @@ public class TokenizeDocument extends Configured implements Tool {
       CommandLine line = parser.parse(options, args);
 
       if (line.hasOption(Settings.HELP_OPTION)) {
-        formatter.printHelp(VariationalInference.class.getName(), options);
+        formatter.printHelp(TokenizeDocument.class.getName(), options);
         System.exit(0);
       }
 
@@ -235,12 +232,12 @@ public class TokenizeDocument extends Configured implements Tool {
         localMerge = true;
       }
 
-      if (line.hasOption(FileMerger.DELETE_SOURCE_OPTION)) {
-        deleteSource = true;
-      }
+      // if (line.hasOption(FileMerger.DELETE_SOURCE_OPTION)) {
+      // deleteSource = true;
+      // }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
-      formatter.printHelp(VariationalInference.class.getName(), options);
+      formatter.printHelp(TokenizeDocument.class.getName(), options);
       System.exit(0);
     } catch (NumberFormatException nfe) {
       System.err.println(nfe.getMessage());
@@ -251,13 +248,13 @@ public class TokenizeDocument extends Configured implements Tool {
       outputPath += Path.SEPARATOR;
     }
 
-    run(inputPath, outputPath, numberOfMappers, numberOfReducers, localMerge, deleteSource);
+    run(inputPath, outputPath, numberOfMappers, numberOfReducers, localMerge);
 
     return 0;
   }
 
   public Path run(String inputPath, String outputPath, int numberOfMappers, int numberOfReducers,
-      boolean localMerge, boolean deleteSource) throws Exception {
+      boolean localMerge) throws Exception {
     if (!outputPath.endsWith(Path.SEPARATOR)) {
       outputPath += Path.SEPARATOR;
     }
@@ -314,14 +311,14 @@ public class TokenizeDocument extends Configured implements Tool {
 
     if (localMerge) {
       documentPath = FileMerger.mergeSequenceFiles(documentGlobString, documentString, 0,
-          Text.class, HMapSIW.class, deleteSource);
+          Text.class, HMapSIW.class, true);
       tokenPath = FileMerger.mergeSequenceFiles(tokenGlobString, tokenString, 0, Text.class,
-          PairOfInts.class, deleteSource);
+          PairOfInts.class, true);
     } else {
       documentPath = FileMerger.mergeSequenceFiles(documentGlobString, documentString,
-          numberOfMappers, Text.class, HMapSIW.class, deleteSource);
+          numberOfMappers, Text.class, HMapSIW.class, true);
       tokenPath = FileMerger.mergeSequenceFiles(tokenGlobString, tokenString, numberOfMappers,
-          Text.class, PairOfInts.class, deleteSource);
+          Text.class, PairOfInts.class, true);
     }
 
     fs.delete(new Path(tempPath), true);
@@ -347,7 +344,7 @@ public class TokenizeDocument extends Configured implements Tool {
       sequenceFileWriter = new SequenceFile.Writer(fs, conf, titleIndexPath, IntWritable.class,
           Text.class);
       sequenceFileLDADocumentWriter = new SequenceFile.Writer(fs, conf, documentIndexPath,
-          IntWritable.class, Text.class);
+          IntWritable.class, LDADocument.class);
       exportLDADocument(sequenceFileReader, sequenceFileLDADocumentWriter, sequenceFileWriter,
           tokenIndex);
     } finally {
@@ -413,7 +410,7 @@ public class TokenizeDocument extends Configured implements Tool {
       index++;
       title.set(index);
       sequenceTitleWriter.append(title, text);
-      sequenceLDADocumentWriter.append(title, context);
+      sequenceLDADocumentWriter.append(title, ldaDocument);
     }
   }
 

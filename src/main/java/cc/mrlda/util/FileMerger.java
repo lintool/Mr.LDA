@@ -51,12 +51,6 @@ public class FileMerger extends Configured implements Tool {
   public static final String TEXT_FILE_INPUT_FORMAT = "textformat";
   public static final boolean TEXT_FILE_INPUT = false;
 
-  // public static final String KEY_CLASS = "key.class";
-  // public static final String VALUE_CLASS = "value.class";
-  //
-  // public static final String FILE_INPUT_FORMAT_CLASS = "file.input.format.class";
-  // public static final String FILE_OUTPUT_FORMAT_CLASS = "file.output.format.class";
-
   public static final String FILE_CONTENT_DELIMITER = "";
 
   public static Path mergeTextFiles(String inputFiles, String outputFile, int numberOfMappers,
@@ -178,7 +172,7 @@ public class FileMerger extends Configured implements Tool {
 
     Path mergePath = new Path(inputPath.getParent().toString() + Path.SEPARATOR + MERGE);
     Preconditions.checkArgument(!fs.exists(mergePath), new IOException(
-        "Intermedia merge directory already exists..."));
+        "Intermediate merge directory already exists..."));
 
     Path outputPath = new Path(outputFile);
     Preconditions.checkArgument(!fs.exists(outputPath), new IOException(
@@ -203,7 +197,7 @@ public class FileMerger extends Configured implements Tool {
         }
       }
     } finally {
-      fs.deleteOnExit(mergePath);
+      fs.delete(mergePath, true);
     }
 
     return outputPath;
