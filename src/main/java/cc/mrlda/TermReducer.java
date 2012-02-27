@@ -30,7 +30,7 @@ import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.util.map.HMapIV;
 
-public class VocabularyReducer extends MapReduceBase implements
+public class TermReducer extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, IntWritable, DoubleWritable> {
   private static HMapIV<Set<Integer>> lambdaMap = null;
 

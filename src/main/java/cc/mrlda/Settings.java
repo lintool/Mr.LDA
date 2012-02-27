@@ -12,6 +12,8 @@ public class Settings extends cc.mrlda.util.Settings {
   public static final String TERM_OPTION = "term";
   public static final String ITERATION_OPTION = "iteration";
 
+  public static final String INFORMED_PRIOR_OPTION = "informedprior";
+
   // todo: add in inference code
   public static final String INFERENCE_MODE_OPTION = "test";
   public static final String RANDOM_START_GAMMA_OPTION = "randomstart";
@@ -29,9 +31,8 @@ public class Settings extends cc.mrlda.util.Settings {
 
   public static final String TEMP = "temp";
 
-  public static final String DOCUMENT = "document";
-  public static final String BETA = "beta";
   public static final String GAMMA = "gamma";
+  public static final String BETA = "beta";
   public static final String ALPHA = "alpha";
   public static final String ETA = "eta";
 
@@ -51,7 +52,7 @@ public class Settings extends cc.mrlda.util.Settings {
    */
   public static final int DEFAULT_ALPHA_UPDATE_SCALE_FACTOR = 10;
 
-  public static final double DEFAULT_GLOBAL_CONVERGE_CRITERIA = 0.00000001;
+  public static final double DEFAULT_GLOBAL_CONVERGE_CRITERIA = 0.000001;
   public static final double DEFAULT_COUNTER_SCALE = 100;
 
   // informed prior on beta matrix

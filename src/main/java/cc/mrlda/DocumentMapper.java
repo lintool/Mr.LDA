@@ -31,7 +31,7 @@ import edu.umd.cloud9.util.map.HMapII;
 import edu.umd.cloud9.util.map.HMapIV;
 
 public class DocumentMapper extends MapReduceBase implements
-    Mapper<IntWritable, LDADocument, PairOfInts, DoubleWritable> {
+    Mapper<IntWritable, Document, PairOfInts, DoubleWritable> {
   private long configurationTime = 0;
   private long trainingTime = 0;
 
@@ -56,7 +56,7 @@ public class DocumentMapper extends MapReduceBase implements
   private DoubleWritable outputValue = new DoubleWritable();
 
   private static MultipleOutputs multipleOutputs;
-  private static OutputCollector<IntWritable, LDADocument> outputDocument;
+  private static OutputCollector<IntWritable, Document> outputDocument;
 
   private double[] tempBeta = null;
   private float[] tempGamma = null;
@@ -86,11 +86,9 @@ public class DocumentMapper extends MapReduceBase implements
     localConvergeForIteration = conf.getInt(Settings.PROPERTY_PREFIX
         + "model.mapper.converge.iteration", Settings.DEFAULT_GAMMA_UPDATE_MAXIMUM_ITERATION);
 
-    Path[] inputFiles;
-
     SequenceFile.Reader sequenceFileReader = null;
     try {
-      inputFiles = DistributedCache.getLocalCacheFiles(conf);
+      Path[] inputFiles = DistributedCache.getLocalCacheFiles(conf);
       // TODO: check for the missing columns...
       if (inputFiles != null) {
         for (Path path : inputFiles) {
@@ -147,7 +145,7 @@ public class DocumentMapper extends MapReduceBase implements
   }
 
   @SuppressWarnings("deprecation")
-  public void map(IntWritable key, LDADocument value,
+  public void map(IntWritable key, Document value,
       OutputCollector<PairOfInts, DoubleWritable> output, Reporter reporter) throws IOException {
     reporter.incrCounter(ParameterCounter.CONFIG_TIME, configurationTime);
     reporter.incrCounter(ParameterCounter.TOTAL_DOC, 1);
@@ -283,7 +281,7 @@ public class DocumentMapper extends MapReduceBase implements
 
     // output the embedded updated gamma together with document
     if (!randomStartGamma || !learning) {
-      outputDocument = multipleOutputs.getCollector(Settings.DOCUMENT, Settings.DOCUMENT, reporter);
+      outputDocument = multipleOutputs.getCollector(Settings.GAMMA, Settings.GAMMA, reporter);
       value.setGamma(tempGamma);
       outputDocument.collect(key, value);
     }

@@ -12,11 +12,11 @@ import org.junit.Test;
 
 import edu.umd.cloud9.util.map.HMapII;
 
-public class LDADocumentTest {
+public class DocumentTest {
   public static double PRECISION = 1e-12;
 
   public void testConstructor1() {
-    LDADocument doc1 = new LDADocument();
+    Document doc1 = new Document();
     assertTrue(doc1.getGamma() == null);
     assertEquals(doc1.getNumberOfTopics(), 0);
 
@@ -31,7 +31,7 @@ public class LDADocumentTest {
     hmap1.put(2, 5);
     hmap1.put(3, 10);
 
-    LDADocument doc1 = new LDADocument(hmap1);
+    Document doc1 = new Document(hmap1);
     assertTrue(doc1.getGamma() == null);
     assertEquals(doc1.getNumberOfTopics(), 0);
 
@@ -56,7 +56,7 @@ public class LDADocumentTest {
     array1[0] = 0.238573f;
     array1[1] = 1.59382f;
 
-    LDADocument doc1 = new LDADocument(hmap1, array1);
+    Document doc1 = new Document(hmap1, array1);
     assertTrue(doc1.getGamma() != null);
     assertEquals(doc1.getNumberOfTopics(), array1.length);
 
@@ -76,7 +76,7 @@ public class LDADocumentTest {
   }
 
   public void testSetDocument() {
-    LDADocument doc1 = new LDADocument();
+    Document doc1 = new Document();
     assertTrue(doc1.getGamma() == null);
     assertEquals(doc1.getNumberOfTopics(), 0);
 
@@ -123,12 +123,12 @@ public class LDADocumentTest {
     array1[0] = 0.238573f;
     array1[1] = 1.59382f;
 
-    LDADocument doc1 = new LDADocument(hmap1, array1);
+    Document doc1 = new Document(hmap1, array1);
     assertEquals(doc1.getNumberOfTopics(), 2);
     assertEquals(doc1.getNumberOfWords(), 37);
     assertEquals(doc1.getNumberOfTypes(), 3);
 
-    LDADocument doc2 = LDADocument.create(doc1.serialize());
+    Document doc2 = Document.create(doc1.serialize());
     HMapII hmap2 = doc2.getContent();
     float[] array2 = doc2.getGamma();
 
@@ -157,14 +157,14 @@ public class LDADocumentTest {
     hmap1.put(3, 10);
     float[] array1 = null;
 
-    LDADocument doc1 = new LDADocument(hmap1, array1);
+    Document doc1 = new Document(hmap1, array1);
 
     assertEquals(doc1.getNumberOfTopics(), 0);
     assertEquals(doc1.getNumberOfWords(), 37);
     assertEquals(doc1.getNumberOfTypes(), 3);
     assertEquals(doc1.getGamma(), null);
 
-    LDADocument doc2 = LDADocument.create(doc1.serialize());
+    Document doc2 = Document.create(doc1.serialize());
     HMapII hmap2 = doc2.getContent();
     float[] array2 = doc2.getGamma();
 
@@ -188,13 +188,13 @@ public class LDADocumentTest {
     array1[0] = 0.238573f;
     array1[1] = 1.59382f;
 
-    LDADocument doc1 = new LDADocument(hmap1, array1);
+    Document doc1 = new Document(hmap1, array1);
     assertEquals(doc1.getNumberOfTopics(), 2);
     assertEquals(doc1.getNumberOfWords(), 0);
     assertEquals(doc1.getNumberOfTypes(), 0);
     assertEquals(doc1.getContent(), null);
 
-    LDADocument doc2 = LDADocument.create(doc1.serialize());
+    Document doc2 = Document.create(doc1.serialize());
 
     HMapII hmap2 = doc2.getContent();
     float[] array2 = doc2.getGamma();
@@ -220,14 +220,14 @@ public class LDADocumentTest {
     HMapII hmap1 = null;
     float[] array1 = null;
 
-    LDADocument doc1 = new LDADocument(hmap1, array1);
+    Document doc1 = new Document(hmap1, array1);
     assertEquals(doc1.getNumberOfTopics(), 0);
     assertEquals(doc1.getNumberOfWords(), 0);
     assertEquals(doc1.getNumberOfTypes(), 0);
     assertEquals(doc1.getContent(), null);
     assertEquals(doc1.getGamma(), null);
 
-    LDADocument doc2 = LDADocument.create(doc1.serialize());
+    Document doc2 = Document.create(doc1.serialize());
 
     HMapII hmap2 = doc2.getContent();
     float[] array2 = doc2.getGamma();
@@ -251,7 +251,7 @@ public class LDADocumentTest {
     hmap1.put(2, 5);
     hmap1.put(3, 10);
 
-    LDADocument doc1 = new LDADocument(hmap1);
+    Document doc1 = new Document(hmap1);
     assertEquals(doc1.getNumberOfWords(), 37);
     assertEquals(doc1.getNumberOfTypes(), 3);
     assertEquals(doc1.getNumberOfTopics(), 0);
@@ -266,7 +266,7 @@ public class LDADocumentTest {
       assertEquals(doc1.getGamma()[i], array1[i], PRECISION);
     }
 
-    LDADocument doc2 = LDADocument.create(doc1.serialize());
+    Document doc2 = Document.create(doc1.serialize());
     HMapII hmap2 = doc2.getContent();
     float[] array2 = doc2.getGamma();
 
@@ -288,6 +288,6 @@ public class LDADocumentTest {
   }
 
   public static junit.framework.Test suite() {
-    return new JUnit4TestAdapter(LDADocumentTest.class);
+    return new JUnit4TestAdapter(DocumentTest.class);
   }
 }

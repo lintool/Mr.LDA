@@ -2,9 +2,11 @@ package cc.mrlda;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.TreeSet;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -15,11 +17,13 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.Counters;
@@ -33,6 +37,7 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
+import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
@@ -49,18 +54,20 @@ import cc.mrlda.util.FileMerger;
 import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.map.HMapSIW;
+import edu.umd.cloud9.io.pair.PairOfIntString;
 import edu.umd.cloud9.io.pair.PairOfInts;
-import edu.umd.cloud9.util.map.HMapII;
 
-public class TokenizeDocument extends Configured implements Tool {
+public class ParseCorpus extends Configured implements Tool {
   protected static enum MyCounter {
     TOTAL_DOCS, TOTAL_TERMS,
   }
 
+  public static final String DOCUMENT = "document";
   public static final String TOKEN = "token";
   public static final String INDEX = "index";
+  public static final String TITLE = "title";
 
-  static final Logger sLogger = Logger.getLogger(TokenizeDocument.class);
+  static final Logger sLogger = Logger.getLogger(ParseCorpus.class);
 
   public static class TokenizeMapper extends MapReduceBase implements
       Mapper<LongWritable, Text, Text, PairOfInts> {
@@ -68,6 +75,7 @@ public class TokenizeDocument extends Configured implements Tool {
     private PairOfInts counts = new PairOfInts();
 
     private OutputCollector<Text, HMapSIW> outputDocument = null;
+    private OutputCollector<Text, NullWritable> outputTitle = null;
     private MultipleOutputs multipleOutputs = null;
 
     private static final StandardAnalyzer standardAnalyzer = new StandardAnalyzer(Version.LUCENE_35);
@@ -82,8 +90,8 @@ public class TokenizeDocument extends Configured implements Tool {
     public void map(LongWritable key, Text value, OutputCollector<Text, PairOfInts> output,
         Reporter reporter) throws IOException {
       if (outputDocument == null) {
-        outputDocument = multipleOutputs.getCollector(Settings.DOCUMENT, Settings.DOCUMENT,
-            reporter);
+        outputDocument = multipleOutputs.getCollector(DOCUMENT, DOCUMENT, reporter);
+        outputTitle = multipleOutputs.getCollector(TITLE, TITLE, reporter);
       }
 
       temp = value.toString();
@@ -96,6 +104,7 @@ public class TokenizeDocument extends Configured implements Tool {
       while (stream.incrementToken()) {
         docContent.increment(term.term());
       }
+      outputTitle.collect(docTitle, NullWritable.get());
       outputDocument.collect(docTitle, docContent);
 
       itr = docContent.keySet().iterator();
@@ -160,6 +169,58 @@ public class TokenizeDocument extends Configured implements Tool {
     }
   }
 
+  public static class IndexMapper extends MapReduceBase implements
+      Mapper<Text, HMapSIW, IntWritable, Document> {
+    private static Map<String, Integer> tokenIndex = null;
+    private static Map<String, Integer> titleIndex = null;
+
+    IntWritable index = new IntWritable();
+    Document document = new Document();
+
+    @SuppressWarnings("deprecation")
+    public void map(Text key, HMapSIW value, OutputCollector<IntWritable, Document> output,
+        Reporter reporter) throws IOException {
+
+    }
+
+    public void configure(JobConf conf) {
+      SequenceFile.Reader sequenceFileReader = null;
+      try {
+        Path[] inputFiles = DistributedCache.getLocalCacheFiles(conf);
+        // TODO: check for the missing columns...
+        if (inputFiles != null) {
+          for (Path path : inputFiles) {
+            try {
+              sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
+
+              if (path.getName().startsWith(TOKEN)) {
+                Preconditions.checkArgument(tokenIndex == null,
+                    "Token index was initialized already...");
+                tokenIndex = ParseCorpus.importParameter(sequenceFileReader);
+              }
+              if (path.getName().startsWith(TITLE)) {
+                Preconditions.checkArgument(titleIndex == null,
+                    "Title index was initialized already...");
+                titleIndex = ParseCorpus.importParameter(sequenceFileReader);
+              } else {
+                throw new IllegalArgumentException("Unexpected file in distributed cache: "
+                    + path.getName());
+              }
+            } catch (IllegalArgumentException iae) {
+              iae.printStackTrace();
+            } catch (IOException ioe) {
+              ioe.printStackTrace();
+            }
+          }
+        }
+      } catch (IOException ioe) {
+        ioe.printStackTrace();
+      } finally {
+        IOUtils.closeStream(sequenceFileReader);
+      }
+    }
+  }
+
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
     Options options = new Options();
@@ -169,7 +230,6 @@ public class TokenizeDocument extends Configured implements Tool {
         .withDescription("input file or directory").create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("output directory").create(Settings.OUTPUT_OPTION));
-
     options
         .addOption(OptionBuilder
             .withArgName(Settings.INTEGER_INDICATOR)
@@ -177,7 +237,6 @@ public class TokenizeDocument extends Configured implements Tool {
             .withDescription(
                 "number of mappers (default - " + Settings.DEFAULT_NUMBER_OF_MAPPERS + ")")
             .create(Settings.MAPPER_OPTION));
-
     options.addOption(OptionBuilder
         .withArgName(Settings.INTEGER_INDICATOR)
         .hasArg()
@@ -186,14 +245,12 @@ public class TokenizeDocument extends Configured implements Tool {
         .create(Settings.REDUCER_OPTION));
     options.addOption(FileMerger.LOCAL_MERGE_OPTION, false,
         "merge output files and parameters locally");
-    // options.addOption(FileMerger.DELETE_SOURCE_OPTION, false, "delete sources after merging");
 
     String inputPath = null;
     String outputPath = null;
     int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
     boolean localMerge = FileMerger.LOCAL_MERGE;
-    // boolean deleteSource = FileMerger.DELETE_SOURCE;
 
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -201,7 +258,7 @@ public class TokenizeDocument extends Configured implements Tool {
       CommandLine line = parser.parse(options, args);
 
       if (line.hasOption(Settings.HELP_OPTION)) {
-        formatter.printHelp(TokenizeDocument.class.getName(), options);
+        formatter.printHelp(ParseCorpus.class.getName(), options);
         System.exit(0);
       }
 
@@ -214,7 +271,6 @@ public class TokenizeDocument extends Configured implements Tool {
 
       if (line.hasOption(Settings.OUTPUT_OPTION)) {
         outputPath = line.getOptionValue(Settings.OUTPUT_OPTION);
-
       } else {
         throw new ParseException("Parsing failed due to " + Settings.OUTPUT_OPTION
             + " not initialized...");
@@ -231,13 +287,9 @@ public class TokenizeDocument extends Configured implements Tool {
       if (line.hasOption(FileMerger.LOCAL_MERGE_OPTION)) {
         localMerge = true;
       }
-
-      // if (line.hasOption(FileMerger.DELETE_SOURCE_OPTION)) {
-      // deleteSource = true;
-      // }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
-      formatter.printHelp(TokenizeDocument.class.getName(), options);
+      formatter.printHelp(ParseCorpus.class.getName(), options);
       System.exit(0);
     } catch (NumberFormatException nfe) {
       System.err.println(nfe.getMessage());
@@ -261,21 +313,23 @@ public class TokenizeDocument extends Configured implements Tool {
 
     String tempPath = outputPath + Settings.TEMP;
 
-    sLogger.info("Tool: " + TokenizeDocument.class.getSimpleName());
+    sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
     sLogger.info(" - input path: " + inputPath);
     sLogger.info(" - output path: " + outputPath);
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + numberOfReducers);
 
-    JobConf conf = new JobConf(TokenizeDocument.class);
-    conf.setJobName(TokenizeDocument.class.getSimpleName());
+    JobConf conf = new JobConf(ParseCorpus.class);
+    conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize");
     FileSystem fs = FileSystem.get(conf);
 
     // Delete the output directory if it exists already
     fs.delete(new Path(outputPath), true);
 
-    MultipleOutputs.addMultiNamedOutput(conf, Settings.DOCUMENT, SequenceFileOutputFormat.class,
-        Text.class, HMapSIW.class);
+    MultipleOutputs.addMultiNamedOutput(conf, DOCUMENT, SequenceFileOutputFormat.class, Text.class,
+        HMapSIW.class);
+    MultipleOutputs.addMultiNamedOutput(conf, TITLE, SequenceFileOutputFormat.class, Text.class,
+        NullWritable.class);
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(numberOfReducers);
@@ -294,128 +348,176 @@ public class TokenizeDocument extends Configured implements Tool {
 
     FileInputFormat.setInputPaths(conf, new Path(inputPath));
     FileOutputFormat.setOutputPath(conf, new Path(tempPath));
-    FileOutputFormat.setCompressOutput(conf, false);
+    FileOutputFormat.setCompressOutput(conf, true);
 
     long startTime = System.currentTimeMillis();
     RunningJob job = JobClient.runJob(conf);
     sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
         + " seconds");
 
-    String documentGlobString = tempPath + Path.SEPARATOR + Settings.DOCUMENT + Settings.STAR;
-    String documentString = outputPath + Settings.DOCUMENT;
-    Path documentPath = null;
+    Counters counters = job.getCounters();
+    int documentCount = (int) counters.findCounter(MyCounter.TOTAL_DOCS).getCounter();
+    sLogger.info("Total number of documents is: " + documentCount);
+
+    int termCount = (int) counters.findCounter(MyCounter.TOTAL_TERMS).getCounter();
+    sLogger.info("Total number of terms is: " + termCount);
+
+    String titleGlobString = tempPath + Path.SEPARATOR + TITLE + Settings.STAR;
+    String titleString = outputPath + TITLE;
+    Path titlePath = null;
 
     String tokenGlobString = tempPath + Path.SEPARATOR + "part-" + Settings.STAR;
     String tokenString = outputPath + TOKEN;
     Path tokenPath = null;
 
     if (localMerge) {
-      documentPath = FileMerger.mergeSequenceFiles(documentGlobString, documentString, 0,
-          Text.class, HMapSIW.class, true);
+      titlePath = FileMerger.mergeSequenceFiles(titleGlobString, titleString, 0, Text.class,
+          NullWritable.class, true);
       tokenPath = FileMerger.mergeSequenceFiles(tokenGlobString, tokenString, 0, Text.class,
           PairOfInts.class, true);
     } else {
-      documentPath = FileMerger.mergeSequenceFiles(documentGlobString, documentString,
-          numberOfMappers, Text.class, HMapSIW.class, true);
+      titlePath = FileMerger.mergeSequenceFiles(titleGlobString, titleString, numberOfMappers,
+          Text.class, NullWritable.class, true);
       tokenPath = FileMerger.mergeSequenceFiles(tokenGlobString, tokenString, numberOfMappers,
           Text.class, PairOfInts.class, true);
     }
 
-    fs.delete(new Path(tempPath), true);
-
     SequenceFile.Reader sequenceFileReader = null;
     SequenceFile.Writer sequenceFileWriter = null;
-    SequenceFile.Writer sequenceFileLDADocumentWriter = null;
 
-    Path tokenIndexPath = new Path(outputPath + INDEX + Path.SEPARATOR + "token");
+    Path tokenIndexPath = new Path(outputPath + INDEX + Path.SEPARATOR + TOKEN);
     fs.createNewFile(tokenIndexPath);
-    Path titleIndexPath = new Path(outputPath + INDEX + Path.SEPARATOR + "title");
+    Path titleIndexPath = new Path(outputPath + INDEX + Path.SEPARATOR + TITLE);
     fs.createNewFile(titleIndexPath);
-    Path documentIndexPath = new Path(outputPath + INDEX + Path.SEPARATOR + "document");
-    fs.createNewFile(documentIndexPath);
 
     try {
       sequenceFileReader = new SequenceFile.Reader(fs, tokenPath, conf);
       sequenceFileWriter = new SequenceFile.Writer(fs, conf, tokenIndexPath, IntWritable.class,
           Text.class);
-      Map<String, Integer> tokenIndex = importTokens(sequenceFileReader, sequenceFileWriter);
+      int tokenCounts = exportTokens(sequenceFileReader, sequenceFileWriter);
+      Preconditions.checkArgument(tokenCounts == termCount,
+          "How embarrassing, mismatch happened for token indices...");
+      sLogger.info("Successfully index all the tokens to " + tokenIndexPath);
 
-      sequenceFileReader = new SequenceFile.Reader(fs, documentPath, conf);
+      sequenceFileReader = new SequenceFile.Reader(fs, titlePath, conf);
       sequenceFileWriter = new SequenceFile.Writer(fs, conf, titleIndexPath, IntWritable.class,
           Text.class);
-      sequenceFileLDADocumentWriter = new SequenceFile.Writer(fs, conf, documentIndexPath,
-          IntWritable.class, LDADocument.class);
-      exportLDADocument(sequenceFileReader, sequenceFileLDADocumentWriter, sequenceFileWriter,
-          tokenIndex);
+      int titleCount = exportTitles(sequenceFileReader, sequenceFileWriter);
+      Preconditions.checkArgument(titleCount == documentCount,
+          "How embarrassing, mismatch happened for title indices...");
+      sLogger.info("Successfully index all the titles to " + titleIndexPath);
     } finally {
       IOUtils.closeStream(sequenceFileReader);
       IOUtils.closeStream(sequenceFileWriter);
     }
 
-    Counters counters = job.getCounters();
-    int documentOldCount = (int) counters.findCounter(MyCounter.TOTAL_DOCS).getCounter();
-    sLogger.info("Total number of documents is: " + documentOldCount);
+    // JobConf conf = new JobConf(IndexDocument.class);
+    conf.clear();
+    conf.setJobName(ParseCorpus.class.getSimpleName() + " - index");
+    fs = FileSystem.get(conf);
 
-    int termCount = (int) counters.findCounter(MyCounter.TOTAL_TERMS).getCounter();
-    sLogger.info("Total number of terms is: " + termCount);
+    Preconditions.checkArgument(fs.exists(tokenIndexPath), "Missing token index files...");
+    DistributedCache.addCacheFile(tokenIndexPath.toUri(), conf);
+    Preconditions.checkArgument(fs.exists(titleIndexPath), "Missing title index files...");
+    DistributedCache.addCacheFile(titleIndexPath.toUri(), conf);
 
-    return documentIndexPath;
+    conf.setNumMapTasks(numberOfMappers);
+    conf.setNumReduceTasks(0);
+    conf.setMapperClass(TokenizeMapper.class);
+
+    conf.setMapOutputKeyClass(IntWritable.class);
+    conf.setMapOutputValueClass(Document.class);
+    conf.setOutputKeyClass(IntWritable.class);
+    conf.setOutputValueClass(Document.class);
+
+    conf.setInputFormat(SequenceFileInputFormat.class);
+    conf.setOutputFormat(SequenceFileOutputFormat.class);
+
+    String documentGlobString = tempPath + Path.SEPARATOR + DOCUMENT + Settings.STAR;
+    String documentString = outputPath + DOCUMENT;
+    Path documentPath = new Path(documentString);
+
+    FileInputFormat.setInputPaths(conf, new Path(documentGlobString));
+    FileOutputFormat.setOutputPath(conf, documentPath);
+    FileOutputFormat.setCompressOutput(conf, true);
+
+    try {
+      startTime = System.currentTimeMillis();
+      job = JobClient.runJob(conf);
+      sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
+          + " seconds");
+    } finally {
+      fs.delete(new Path(tempPath), true);
+    }
+
+    return documentPath;
   }
 
-  public static Map<String, Integer> importTokens(SequenceFile.Reader sequenceFileReader,
+  public static int exportTokens(SequenceFile.Reader sequenceFileReader,
       SequenceFile.Writer sequenceFileWriter) throws IOException {
-    Map<String, Integer> tokenIndex = new HashMap<String, Integer>();
-    int index = 0;
+    TreeSet<PairOfIntString> treeMap = new TreeSet<PairOfIntString>(new Comparator() {
+      @Override
+      public int compare(Object obj1, Object obj2) {
+        PairOfIntString entry1 = (PairOfIntString) obj1;
+        PairOfIntString entry2 = (PairOfIntString) obj2;
+        if (entry1.getLeftElement() > entry2.getLeftElement()) {
+          return -1;
+        } else if (entry1.getLeftElement() < entry2.getLeftElement()) {
+          return entry1.getRightElement().compareTo(entry2.getRightElement());
+        } else {
+          return 0;
+        }
+      }
+    });
 
     Text text = new Text();
     PairOfInts pairOfInts = new PairOfInts();
-    IntWritable intWritable = new IntWritable();
-
     while (sequenceFileReader.next(text, pairOfInts)) {
-      index++;
-      tokenIndex.put(text.toString(), index);
+      treeMap.add(new PairOfIntString(pairOfInts.getLeftElement(), text.toString()));
+    }
 
+    int index = 0;
+    IntWritable intWritable = new IntWritable();
+    Iterator<PairOfIntString> itr = treeMap.iterator();
+    while (itr.hasNext()) {
+      index++;
       intWritable.set(index);
+      text.set(itr.next().getRightElement());
       sequenceFileWriter.append(intWritable, text);
     }
 
-    return tokenIndex;
+    return index;
   }
 
-  public static void exportLDADocument(SequenceFile.Reader sequenceFileReader,
-      SequenceFile.Writer sequenceLDADocumentWriter, SequenceFile.Writer sequenceTitleWriter,
-      Map<String, Integer> tokenIndex) throws IOException {
+  public static int exportTitles(SequenceFile.Reader sequenceFileReader,
+      SequenceFile.Writer sequenceWriter) throws IOException {
     Text text = new Text();
-    HMapSIW map = new HMapSIW();
-
-    Iterator<String> itr = null;
-    String temp = null;
-
-    HMapII context = new HMapII();
-    LDADocument ldaDocument = new LDADocument();
-    IntWritable title = new IntWritable();
+    IntWritable intWritable = new IntWritable();
     int index = 0;
-
-    while (sequenceFileReader.next(text, map)) {
-      context.clear();
-      itr = map.keySet().iterator();
-      while (itr.hasNext()) {
-        temp = itr.next();
-        Preconditions.checkArgument(tokenIndex.containsKey(temp), "How surprise? Token " + temp
-            + " not found in the index file...");
-        context.put(tokenIndex.get(temp), map.get(temp));
-      }
-      ldaDocument.setDocument(context);
-
+    while (sequenceFileReader.next(text)) {
       index++;
-      title.set(index);
-      sequenceTitleWriter.append(title, text);
-      sequenceLDADocumentWriter.append(title, ldaDocument);
+      intWritable.set(index);
+      sequenceWriter.append(intWritable, text);
     }
+
+    return index;
+  }
+
+  public static Map<String, Integer> importParameter(SequenceFile.Reader sequenceFileReader)
+      throws IOException {
+    Map<String, Integer> hashMap = new HashMap<String, Integer>();
+
+    IntWritable intWritable = new IntWritable();
+    Text text = new Text();
+    while (sequenceFileReader.next(intWritable, text)) {
+      hashMap.put(text.toString(), intWritable.get());
+    }
+
+    return hashMap;
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new TokenizeDocument(), args);
+    int res = ToolRunner.run(new Configuration(), new ParseCorpus(), args);
     System.exit(res);
   }
 }

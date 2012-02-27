@@ -252,7 +252,7 @@ public class VariationalInference extends Configured implements Tool {
     Path alphaDir = null;
     Path betaDir = null;
 
-    Path documentGlobDir = new Path(tempDir.toString() + Path.SEPARATOR + Settings.DOCUMENT
+    Path documentGlobDir = new Path(tempDir.toString() + Path.SEPARATOR + Settings.GAMMA
         + Settings.STAR);
 
     // these parameters are NOT used at all in the case of testing mode
@@ -340,14 +340,14 @@ public class VariationalInference extends Configured implements Tool {
       }
 
       if (!randomStartGamma || !training) {
-        MultipleOutputs.addMultiNamedOutput(conf, Settings.DOCUMENT,
-            SequenceFileOutputFormat.class, IntWritable.class, LDADocument.class);
+        MultipleOutputs.addMultiNamedOutput(conf, Settings.GAMMA,
+            SequenceFileOutputFormat.class, IntWritable.class, Document.class);
       }
 
       conf.setMapperClass(DocumentMapper.class);
-      conf.setReducerClass(VocabularyReducer.class);
-      conf.setCombinerClass(VocabularyCombiner.class);
-      conf.setPartitionerClass(VocabularyPartitioner.class);
+      conf.setReducerClass(TermReducer.class);
+      conf.setCombinerClass(TermCombiner.class);
+      conf.setPartitionerClass(TermPartitioner.class);
 
       conf.setMapOutputKeyClass(PairOfInts.class);
       conf.setMapOutputValueClass(DoubleWritable.class);
@@ -400,7 +400,7 @@ public class VariationalInference extends Configured implements Tool {
           // remove old gamma and document output
           fs.delete(inputDir, true);
         }
-        inputDir = new Path(outputPath + Settings.DOCUMENT + (iterationCount + 1));
+        inputDir = new Path(outputPath + Settings.GAMMA + (iterationCount + 1));
 
         fs.mkdirs(inputDir);
         FileStatus[] fileStatus = fs.globStatus(documentGlobDir);

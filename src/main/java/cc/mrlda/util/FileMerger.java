@@ -189,7 +189,6 @@ public class FileMerger extends Configured implements Tool {
           + " seconds");
 
       fs.rename(new Path(mergePath.toString() + Path.SEPARATOR + "part-00000"), outputPath);
-      sLogger.info("Successfully merge " + inputFiles.toString() + " to " + outputFile);
 
       if (deleteSource) {
         for (FileStatus fileStatus : fs.globStatus(inputPath)) {
@@ -199,6 +198,8 @@ public class FileMerger extends Configured implements Tool {
     } finally {
       fs.delete(mergePath, true);
     }
+
+    sLogger.info("Successfully merge " + inputFiles.toString() + " to " + outputFile);
 
     return outputPath;
   }

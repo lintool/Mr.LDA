@@ -15,7 +15,7 @@ import org.apache.hadoop.io.Writable;
 import edu.umd.cloud9.util.map.HMapII;
 import edu.umd.cloud9.util.map.MapII;
 
-public class LDADocument implements Writable, Cloneable, Serializable {
+public class Document implements Writable, Cloneable, Serializable {
   /**
    * 
    */
@@ -43,7 +43,7 @@ public class LDADocument implements Writable, Cloneable, Serializable {
    * @return a newly-created <code>LDADocument</code> object
    * @throws IOException
    */
-  public static LDADocument create(byte[] bytes) throws IOException {
+  public static Document create(byte[] bytes) throws IOException {
     return create(new DataInputStream(new ByteArrayInputStream(bytes)));
   }
 
@@ -54,17 +54,17 @@ public class LDADocument implements Writable, Cloneable, Serializable {
    * @return a newly-created <code>LDADocument</code> object
    * @throws IOException
    */
-  public static LDADocument create(DataInput in) throws IOException {
-    LDADocument m = new LDADocument();
+  public static Document create(DataInput in) throws IOException {
+    Document m = new Document();
     m.readFields(in);
 
     return m;
   }
 
-  public LDADocument() {
+  public Document() {
   }
 
-  public LDADocument(HMapII document) {
+  public Document(HMapII document) {
     this.content = document;
     if (document != null) {
       Iterator<Integer> itr = this.content.values().iterator();
@@ -79,7 +79,7 @@ public class LDADocument implements Writable, Cloneable, Serializable {
    * @param document
    * @param gamma
    */
-  public LDADocument(HMapII document, float[] gamma) {
+  public Document(HMapII document, float[] gamma) {
     this(document);
     this.gamma = gamma;
   }
@@ -89,7 +89,7 @@ public class LDADocument implements Writable, Cloneable, Serializable {
    * @param document
    * @param numberOfTopics
    */
-  public LDADocument(HMapII document, int numberOfTopics) {
+  public Document(HMapII document, int numberOfTopics) {
     this(document, new float[numberOfTopics]);
   }
 

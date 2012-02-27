@@ -12,7 +12,7 @@ import org.apache.hadoop.mapred.Reporter;
 import cc.mrlda.util.LogMath;
 import edu.umd.cloud9.io.pair.PairOfInts;
 
-public class VocabularyCombiner extends MapReduceBase implements
+public class TermCombiner extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, PairOfInts, DoubleWritable> {
   private DoubleWritable outputValue = new DoubleWritable();
 
