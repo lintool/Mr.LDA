@@ -31,84 +31,23 @@ import edu.umd.cloud9.util.map.HMapIV;
 
 public class VocabularyReducer extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, IntWritable, DoubleWritable> {
-  static HMapIV<Set<Integer>> lambdaMap = null;
-  static int numberOfTerms;
-  static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
+  private static HMapIV<Set<Integer>> lambdaMap = null;
 
-  static boolean learning = Settings.LEARNING_MODE;
+  private static int numberOfTerms;
+  private static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
+  private static boolean learning = Settings.LEARNING_MODE;
 
-  int topicIndex = 0;
-  double normalizeFactor = 0;
+  private int topicIndex = 0;
+  private double normalizeFactor = 0;
 
-  MultipleOutputs multipleOutputs;
-  OutputCollector<PairOfIntFloat, HMapIFW> outputBeta;
+  private MultipleOutputs multipleOutputs;
+  private OutputCollector<PairOfIntFloat, HMapIFW> outputBeta;
 
-  IntWritable intWritable = new IntWritable();
-  PairOfIntFloat outputKey = new PairOfIntFloat();
-  DoubleWritable outputDoubleValue = new DoubleWritable();
-  HMapIFW outputHMapIFW = new HMapIFW();
+  private IntWritable intWritable = new IntWritable();
+  private DoubleWritable doubleWritable = new DoubleWritable();
 
-  public void reduce(PairOfInts key, Iterator<DoubleWritable> values,
-      OutputCollector<IntWritable, DoubleWritable> output, Reporter reporter) throws IOException {
-
-    if (key.getLeftElement() == 0) {
-      double sum = values.next().get();
-      while (values.hasNext()) {
-        sum += values.next().get();
-      }
-
-      Preconditions.checkArgument(key.getRightElement() >= 0,
-          "Unexpected sequence order for Convergence Criteria: " + key.toString());
-
-      intWritable.set(key.getRightElement());
-      outputDoubleValue.set(sum);
-      output.collect(intWritable, outputDoubleValue);
-
-      return;
-    }
-
-    // I would be very surprised to get here...
-    Preconditions.checkArgument(learning, "Invalid key from Mapper");
-
-    double phiValue = values.next().get();
-    while (values.hasNext()) {
-      phiValue = LogMath.add(phiValue, values.next().get());
-    }
-
-    if (topicIndex != key.getLeftElement()) {
-      if (topicIndex == 0) {
-        outputBeta = multipleOutputs.getCollector(Settings.BETA, Settings.BETA, reporter);
-        outputHMapIFW.clear();
-      } else {
-        outputKey.set(topicIndex, (float) normalizeFactor);
-        outputBeta.collect(outputKey, outputHMapIFW);
-        outputHMapIFW.clear();
-        normalizeFactor = 0;
-      }
-
-      topicIndex = key.getLeftElement();
-
-      if (lambdaMap != null) {
-        phiValue = LogMath.add(getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
-      }
-      normalizeFactor = phiValue;
-
-      outputHMapIFW.put(key.getRightElement(), (float) phiValue);
-    } else {
-      if (lambdaMap != null) {
-        phiValue = LogMath.add(getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
-      }
-      normalizeFactor = LogMath.add(normalizeFactor, phiValue);
-      outputHMapIFW.put(key.getRightElement(), (float) phiValue);
-    }
-  }
-
-  public static float getEta(int termID, Set<Integer> knownTerms) {
-    if (knownTerms != null && knownTerms.contains(termID)) {
-      return Settings.DEFAULT_INFORMED_LOG_ETA;
-    }
-    return Settings.DEFAULT_UNINFORMED_LOG_ETA;
-  }
+  private PairOfIntFloat outputKey = new PairOfIntFloat();
+  private HMapIFW outputValue = new HMapIFW();
 
   public void configure(JobConf conf) {
     multipleOutputs = new MultipleOutputs(conf);
@@ -152,14 +91,81 @@ public class VocabularyReducer extends MapReduceBase implements
     } catch (IOException ioe) {
       ioe.printStackTrace();
     }
+
+    System.out.println("======================================================================");
+    System.out.println("Available processors (cores): "
+        + Runtime.getRuntime().availableProcessors());
+    long maxMemory = Runtime.getRuntime().maxMemory();
+    System.out.println("Maximum memory (bytes): "
+        + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
+    System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
+    System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
+    System.out.println("======================================================================");
+  }
+
+  public void reduce(PairOfInts key, Iterator<DoubleWritable> values,
+      OutputCollector<IntWritable, DoubleWritable> output, Reporter reporter) throws IOException {
+    if (key.getLeftElement() == 0) {
+      double sum = values.next().get();
+      while (values.hasNext()) {
+        sum += values.next().get();
+      }
+
+      Preconditions.checkArgument(key.getRightElement() >= 0,
+          "Unexpected sequence order for Convergence Criteria: " + key.toString());
+
+      intWritable.set(key.getRightElement());
+      doubleWritable.set(sum);
+      output.collect(intWritable, doubleWritable);
+
+      return;
+    }
+
+    // I would be very surprised to get here...
+    Preconditions.checkArgument(learning, "Invalid key from Mapper");
+
+    double phiValue = values.next().get();
+    while (values.hasNext()) {
+      phiValue = LogMath.add(phiValue, values.next().get());
+    }
+
+    if (topicIndex != key.getLeftElement()) {
+      if (topicIndex == 0) {
+        outputBeta = multipleOutputs.getCollector(Settings.BETA, Settings.BETA, reporter);
+      } else {
+        outputKey.set(topicIndex, (float) normalizeFactor);
+        outputBeta.collect(outputKey, outputValue);
+      }
+
+      topicIndex = key.getLeftElement();
+      if (lambdaMap != null) {
+        phiValue = LogMath.add(getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
+      }
+      normalizeFactor = phiValue;
+      outputValue.clear();
+      outputValue.put(key.getRightElement(), (float) phiValue);
+    } else {
+      if (lambdaMap != null) {
+        phiValue = LogMath.add(getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
+      }
+      normalizeFactor = LogMath.add(normalizeFactor, phiValue);
+      outputValue.put(key.getRightElement(), (float) phiValue);
+    }
   }
 
   public void close() throws IOException {
-    if (!outputHMapIFW.isEmpty()) {
+    if (!outputValue.isEmpty()) {
       outputKey.set(topicIndex, (float) normalizeFactor);
-      outputBeta.collect(outputKey, outputHMapIFW);
+      outputBeta.collect(outputKey, outputValue);
     }
     multipleOutputs.close();
+  }
+
+  public static float getEta(int termID, Set<Integer> knownTerms) {
+    if (knownTerms != null && knownTerms.contains(termID)) {
+      return Settings.DEFAULT_INFORMED_LOG_ETA;
+    }
+    return Settings.DEFAULT_UNINFORMED_LOG_ETA;
   }
 
   public static HMapIV<Set<Integer>> importEta(SequenceFile.Reader sequenceFileReader)

@@ -313,14 +313,14 @@ public class TokenizeDocument extends Configured implements Tool {
     Path tokenPath = null;
 
     if (localMerge) {
-      documentPath = FileMerger.mergeSequenceFilesLocal(documentGlobString, documentString,
+      documentPath = FileMerger.mergeSequenceFiles(documentGlobString, documentString, 0,
           Text.class, HMapSIW.class, deleteSource);
-      tokenPath = FileMerger.mergeSequenceFilesLocal(tokenGlobString, tokenString, Text.class,
+      tokenPath = FileMerger.mergeSequenceFiles(tokenGlobString, tokenString, 0, Text.class,
           PairOfInts.class, deleteSource);
     } else {
-      documentPath = FileMerger.mergeFilesDistribute(documentGlobString, documentString,
+      documentPath = FileMerger.mergeSequenceFiles(documentGlobString, documentString,
           numberOfMappers, Text.class, HMapSIW.class, deleteSource);
-      tokenPath = FileMerger.mergeFilesDistribute(tokenGlobString, tokenString, numberOfMappers,
+      tokenPath = FileMerger.mergeSequenceFiles(tokenGlobString, tokenString, numberOfMappers,
           Text.class, PairOfInts.class, deleteSource);
     }
 

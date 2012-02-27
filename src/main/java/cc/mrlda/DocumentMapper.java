@@ -32,16 +32,11 @@ import edu.umd.cloud9.util.map.HMapIV;
 
 public class DocumentMapper extends MapReduceBase implements
     Mapper<IntWritable, LDADocument, PairOfInts, DoubleWritable> {
-  boolean mapperCombiner = false;
-  Hashtable<Integer, double[]> totalPhi = new Hashtable<Integer, double[]>();
-  double[] totalAlphaSufficientStatistics;
-  OutputCollector<PairOfInts, DoubleWritable> outputCollector;
-
   private long configurationTime = 0;
   private long trainingTime = 0;
 
-  private HMapIV<double[]> beta = null;
-  private double[] alpha = null;
+  private static HMapIV<double[]> beta = null;
+  private static double[] alpha = null;
 
   private static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
   private static int numberOfTerms = 0;
@@ -138,8 +133,6 @@ public class DocumentMapper extends MapReduceBase implements
       ioe.printStackTrace();
     }
 
-    totalAlphaSufficientStatistics = new double[numberOfTopics];
-
     System.out.println("======================================================================");
     System.out.println("Available processors (cores): "
         + Runtime.getRuntime().availableProcessors());
@@ -157,9 +150,8 @@ public class DocumentMapper extends MapReduceBase implements
   public void map(IntWritable key, LDADocument value,
       OutputCollector<PairOfInts, DoubleWritable> output, Reporter reporter) throws IOException {
     reporter.incrCounter(ParameterCounter.CONFIG_TIME, configurationTime);
-    trainingTime = System.currentTimeMillis();
-
     reporter.incrCounter(ParameterCounter.TOTAL_DOC, 1);
+    trainingTime = System.currentTimeMillis();
 
     double likelihoodPhi = 0;
     double likelihoodGamma = 0;
@@ -266,76 +258,26 @@ public class DocumentMapper extends MapReduceBase implements
       sumGamma += tempGamma[i];
     }
 
-    if (mapperCombiner) {
-      outputCollector = output;
-      if (learning) {
-        if (Runtime.getRuntime().freeMemory() < Settings.MEMORY_THRESHOLD) {
-          System.out.println("Flushing out all the records...");
-          itr = totalPhi.keySet().iterator();
-          while (itr.hasNext()) {
-            int termID = itr.next();
-            phi = totalPhi.get(termID);
-            for (int i = 0; i < numberOfTopics; i++) {
-              outputValue.set(phi[i]);
-
-              // a *positive* topic index indicates the output is a phi values
-              outputKey.set(i + 1, termID);
-              output.collect(outputKey, outputValue);
-            }
-          }
-          totalPhi.clear();
-
-          for (int i = 0; i < numberOfTopics; i++) {
-            // a *zero* topic index and a *positive* topic index indicates the output is a term for
-            // alpha updating
-            outputKey.set(0, i + 1);
-            outputValue.set(totalAlphaSufficientStatistics[i]);
-            output.collect(outputKey, outputValue);
-            totalAlphaSufficientStatistics[i] = 0;
-          }
-        }
-
-        itr = phiTable.keySet().iterator();
-        while (itr.hasNext()) {
-          int termID = itr.next();
-          if (totalPhi.containsKey(termID)) {
-            phi = phiTable.get(termID);
-            tempBeta = totalPhi.get(termID);
-            for (int i = 0; i < numberOfTopics; i++) {
-              tempBeta[i] = LogMath.add(phi[i], tempBeta[i]);
-            }
-          } else {
-            totalPhi.put(termID, phiTable.get(termID));
-          }
-
-          for (int i = 0; i < numberOfTopics; i++) {
-            totalAlphaSufficientStatistics[i] += Approximation.digamma(tempGamma[i])
-                - Approximation.digamma(sumGamma);
-          }
-        }
-      }
-    } else {
-      if (learning) {
-        itr = phiTable.keySet().iterator();
-        while (itr.hasNext()) {
-          int termID = itr.next();
-          phi = phiTable.get(termID);
-          for (int i = 0; i < numberOfTopics; i++) {
-            outputValue.set(phi[i]);
-
-            // a *positive* topic index indicates the output is a phi values
-            outputKey.set(i + 1, termID);
-            output.collect(outputKey, outputValue);
-          }
-        }
-
+    if (learning) {
+      itr = phiTable.keySet().iterator();
+      while (itr.hasNext()) {
+        int termID = itr.next();
+        phi = phiTable.get(termID);
         for (int i = 0; i < numberOfTopics; i++) {
-          // a *zero* topic index and a *positive* topic index indicates the output is a term for
-          // alpha updating
-          outputKey.set(0, i + 1);
-          outputValue.set((Approximation.digamma(tempGamma[i]) - Approximation.digamma(sumGamma)));
+          outputValue.set(phi[i]);
+
+          // a *positive* topic index indicates the output is a phi values
+          outputKey.set(i + 1, termID);
           output.collect(outputKey, outputValue);
         }
+      }
+
+      for (int i = 0; i < numberOfTopics; i++) {
+        // a *zero* topic index and a *positive* topic index indicates the output is a term for
+        // alpha updating
+        outputKey.set(0, i + 1);
+        outputValue.set((Approximation.digamma(tempGamma[i]) - Approximation.digamma(sumGamma)));
+        output.collect(outputKey, outputValue);
       }
     }
 
@@ -356,32 +298,6 @@ public class DocumentMapper extends MapReduceBase implements
 
   public void close() throws IOException {
     multipleOutputs.close();
-
-    if (mapperCombiner) {
-      double[] phi = null;
-      itr = totalPhi.keySet().iterator();
-      while (itr.hasNext()) {
-        int termID = itr.next();
-        phi = totalPhi.get(termID);
-        for (int i = 0; i < numberOfTopics; i++) {
-          outputValue.set(phi[i]);
-
-          // a *positive* topic index indicates the output is a phi values
-          outputKey.set(i + 1, termID);
-          outputCollector.collect(outputKey, outputValue);
-        }
-      }
-      totalPhi.clear();
-
-      for (int i = 0; i < numberOfTopics; i++) {
-        // a *zero* topic index and a *positive* topic index indicates the output is a term for
-        // alpha updating
-        outputKey.set(0, i + 1);
-        outputValue.set(totalAlphaSufficientStatistics[i]);
-        outputCollector.collect(outputKey, outputValue);
-        totalAlphaSufficientStatistics[i] = 0;
-      }
-    }
   }
 
   /**

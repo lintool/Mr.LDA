@@ -324,8 +324,8 @@ public class VariationalInference extends Configured implements Tool {
       conf.setInt(Settings.PROPERTY_PREFIX + "corpus.terms", numberOfTerms);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.train", training);
 
-      conf.setInt("mapred.task.timeout", 30 * 60 * 1000);
-      conf.set("mapred.child.java.opts", "-Xmx2048m");
+      // conf.setInt("mapred.task.timeout", 30 * 60 * 1000);
+      // conf.set("mapred.child.java.opts", "-Xmx2048m");
 
       conf.setNumMapTasks(mapperTasks);
       if (training) {
@@ -354,13 +354,15 @@ public class VariationalInference extends Configured implements Tool {
       conf.setOutputKeyClass(IntWritable.class);
       conf.setOutputValueClass(DoubleWritable.class);
 
+      conf.setCompressMapOutput(true);
+      FileOutputFormat.setCompressOutput(conf, true);
+
       FileInputFormat.setInputPaths(conf, inputDir);
       FileOutputFormat.setOutputPath(conf, tempDir);
 
       // suppress the empty part files
       conf.setInputFormat(SequenceFileInputFormat.class);
       conf.setOutputFormat(SequenceFileOutputFormat.class);
-      FileOutputFormat.setCompressOutput(conf, false);
 
       // delete the output directory if it exists already
       fs.delete(tempDir, true);
@@ -381,7 +383,8 @@ public class VariationalInference extends Configured implements Tool {
           * 1.0 / numberOfDocuments;
       sLogger.info("Average time elapsed for mapper configuration (ms): " + configurationTime);
 
-      double trainingTime = counters.findCounter(ParameterCounter.TRAINING_TIME).getCounter();
+      double trainingTime = counters.findCounter(ParameterCounter.TRAINING_TIME).getCounter() * 1.0
+          / numberOfDocuments;
       sLogger.info("Average time elapsed for processing a document (ms): " + trainingTime);
 
       // break out of the loop if in testing mode
@@ -440,7 +443,7 @@ public class VariationalInference extends Configured implements Tool {
 
       // merge beta's
       if (localMerge) {
-        betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+        betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1), 0,
             PairOfIntFloat.class, HMapIFW.class, true);
       } else {
         betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),

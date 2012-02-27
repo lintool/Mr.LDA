@@ -35,7 +35,6 @@ import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
 import cc.mrlda.Settings;
-import cc.mrlda.VariationalInference;
 
 import com.google.common.base.Preconditions;
 import com.sun.xml.internal.rngom.parse.compact.ParseException;
@@ -77,7 +76,7 @@ public class FileMerger extends Configured implements Tool {
    * @return
    * @throws IOException
    */
-  public static Path mergeTextFiles(String inputFiles, String outputFile, boolean deleteSource)
+  private static Path mergeTextFiles(String inputFiles, String outputFile, boolean deleteSource)
       throws IOException {
     JobConf conf = new JobConf(FileMerger.class);
     FileSystem fs = FileSystem.get(conf);
@@ -104,7 +103,7 @@ public class FileMerger extends Configured implements Tool {
     }
   }
 
-  public static Path mergeSequenceFiles(String inputFiles, String outputFile,
+  private static Path mergeSequenceFiles(String inputFiles, String outputFile,
       Class<? extends Writable> keyClass, Class<? extends Writable> valueClass, boolean deleteSource)
       throws IOException, InstantiationException, IllegalAccessException {
     JobConf conf = new JobConf(FileMerger.class);
@@ -147,7 +146,7 @@ public class FileMerger extends Configured implements Tool {
     return outputPath;
   }
 
-  public static Path mergeFilesDistribute(String inputFiles, String outputFile,
+  private static Path mergeFilesDistribute(String inputFiles, String outputFile,
       int numberOfMappers, Class<? extends Writable> keyClass,
       Class<? extends Writable> valueClass, Class<? extends FileInputFormat> fileInputClass,
       Class<? extends FileOutputFormat> fileOutputClass, boolean deleteSource) throws Exception {
@@ -187,7 +186,7 @@ public class FileMerger extends Configured implements Tool {
 
     FileInputFormat.setInputPaths(conf, inputPath);
     FileOutputFormat.setOutputPath(conf, mergePath);
-    FileOutputFormat.setCompressOutput(conf, false);
+    FileOutputFormat.setCompressOutput(conf, true);
 
     try {
       long startTime = System.currentTimeMillis();
@@ -199,7 +198,9 @@ public class FileMerger extends Configured implements Tool {
       sLogger.info("Successfully merge " + inputFiles.toString() + " to " + outputFile);
 
       if (deleteSource) {
-        fs.deleteOnExit(inputPath);
+        for (FileStatus fileStatus : fs.globStatus(inputPath)) {
+          fs.deleteOnExit(fileStatus.getPath());
+        }
       }
     } finally {
       fs.deleteOnExit(mergePath);
@@ -238,9 +239,6 @@ public class FileMerger extends Configured implements Tool {
 
     Class<? extends Writable> keyClass = LongWritable.class;
     Class<? extends Writable> valueClass = Text.class;
-
-    // Class<? extends FileInputFormat> fileInputFormatClass = SequenceFileInputFormat.class;
-    // Class<? extends FileOutputFormat> fileOutputFormatClass = SequenceFileOutputFormat.class;
 
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -291,20 +289,17 @@ public class FileMerger extends Configured implements Tool {
       System.exit(0);
     }
 
-    JobConf conf = new JobConf(FileMerger.class);
-    FileSystem fs = FileSystem.get(conf);
-    Path inputFiles = new Path(inputPath);
-    Preconditions.checkArgument(fs.exists(inputFiles) && !fs.isFile(inputFiles),
-        "Invalid input path...");
+    FileSystem fs = FileSystem.get(new Configuration());
     if (!textFileFormat) {
-      FileStatus[] fileStatus = fs.globStatus(inputFiles);
-      SequenceFile.Reader reader = new SequenceFile.Reader(fs, fileStatus[0].getPath(),
-          fs.getConf());
+      FileStatus[] fileStatus = fs.globStatus(new Path(inputPath));
+      Preconditions.checkArgument(fileStatus.length > 0, "Invalid input path...");
+      SequenceFile.Reader reader = new SequenceFile.Reader(fs,
+          fileStatus[fileStatus.length - 1].getPath(), fs.getConf());
       try {
         keyClass = (Class<? extends Writable>) reader.getKeyClass();
         valueClass = (Class<? extends Writable>) reader.getValueClass();
         sLogger.info("Key type: " + keyClass.toString());
-        sLogger.info("Value type: " + valueClass.toString() + "\n");
+        sLogger.info("Value type: " + valueClass.toString());
       } catch (Exception e) {
         throw new RuntimeException("Error in loading key/value class");
       }
@@ -320,7 +315,7 @@ public class FileMerger extends Configured implements Tool {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new VariationalInference(), args);
+    int res = ToolRunner.run(new Configuration(), new FileMerger(), args);
     System.exit(res);
   }
 }
