@@ -19,6 +19,7 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
+import cc.mrlda.Settings.ParameterCounter;
 import cc.mrlda.util.LogMath;
 
 import com.google.common.base.Preconditions;
@@ -123,6 +124,7 @@ public class VocabularyReducer extends MapReduceBase implements
 
     // I would be very surprised to get here...
     Preconditions.checkArgument(learning, "Invalid key from Mapper");
+    reporter.incrCounter(ParameterCounter.TOTAL_TERM, 1);
 
     double phiValue = values.next().get();
     while (values.hasNext()) {
