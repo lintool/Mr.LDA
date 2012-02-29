@@ -1,7 +1,6 @@
 package cc.mrlda;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -19,12 +18,11 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
-import cc.mrlda.Settings.ParameterCounter;
+import cc.mrlda.VariationalInference.ParameterCounter;
 import cc.mrlda.util.LogMath;
 
 import com.google.common.base.Preconditions;
 
-import edu.umd.cloud9.io.array.ArrayListOfIntsWritable;
 import edu.umd.cloud9.io.map.HMapIFW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
@@ -58,6 +56,9 @@ public class TermReducer extends MapReduceBase implements
         Settings.DEFAULT_NUMBER_OF_TOPICS);
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
 
+    boolean informedPrior = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.informed.prior",
+        false);
+
     Path[] inputFiles;
     SequenceFile.Reader sequenceFileReader = null;
 
@@ -71,11 +72,11 @@ public class TermReducer extends MapReduceBase implements
 
             if (path.getName().startsWith(Settings.BETA)) {
               continue;
-            } else if (path.getName().startsWith(Settings.ETA)) {
+            } else if (path.getName().startsWith(InformedPrior.ETA)) {
               Preconditions.checkArgument(lambdaMap == null,
                   "Lambda matrix was initialized already...");
+              lambdaMap = InformedPrior.importEta(sequenceFileReader);
 
-              lambdaMap = importEta(sequenceFileReader);
             } else {
               throw new IllegalArgumentException("Unexpected file in distributed cache: "
                   + path.getName());
@@ -92,6 +93,9 @@ public class TermReducer extends MapReduceBase implements
     } catch (IOException ioe) {
       ioe.printStackTrace();
     }
+
+    Preconditions.checkArgument(informedPrior == (lambdaMap != null),
+        "Fail to initialize informed prior...");
 
     System.out.println("======================================================================");
     System.out.println("Available processors (cores): "
@@ -141,14 +145,16 @@ public class TermReducer extends MapReduceBase implements
 
       topicIndex = key.getLeftElement();
       if (lambdaMap != null) {
-        phiValue = LogMath.add(getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
+        phiValue = LogMath.add(
+            InformedPrior.getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
       }
       normalizeFactor = phiValue;
       outputValue.clear();
       outputValue.put(key.getRightElement(), (float) phiValue);
     } else {
       if (lambdaMap != null) {
-        phiValue = LogMath.add(getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
+        phiValue = LogMath.add(
+            InformedPrior.getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
       }
       normalizeFactor = LogMath.add(normalizeFactor, phiValue);
       outputValue.put(key.getRightElement(), (float) phiValue);
@@ -163,35 +169,4 @@ public class TermReducer extends MapReduceBase implements
     multipleOutputs.close();
   }
 
-  public static float getEta(int termID, Set<Integer> knownTerms) {
-    if (knownTerms != null && knownTerms.contains(termID)) {
-      return Settings.DEFAULT_INFORMED_LOG_ETA;
-    }
-    return Settings.DEFAULT_UNINFORMED_LOG_ETA;
-  }
-
-  public static HMapIV<Set<Integer>> importEta(SequenceFile.Reader sequenceFileReader)
-      throws IOException {
-    HMapIV<Set<Integer>> lambdaMap = new HMapIV<Set<Integer>>();
-
-    IntWritable intWritable = new IntWritable();
-    ArrayListOfIntsWritable arrayListOfInts = new ArrayListOfIntsWritable();
-
-    while (sequenceFileReader.next(intWritable, arrayListOfInts)) {
-      Preconditions.checkArgument(intWritable.get() > 0 && intWritable.get() <= numberOfTopics,
-          "Invalid eta prior for term " + intWritable.get() + "...");
-
-      // topic is from 1 to K
-      int topicIndex = intWritable.get();
-      Set<Integer> hashset = new HashSet<Integer>();
-
-      Iterator<Integer> itr = arrayListOfInts.iterator();
-      while (itr.hasNext()) {
-        hashset.add(itr.next());
-      }
-
-      lambdaMap.put(topicIndex, hashset);
-    }
-    return lambdaMap;
-  }
 }

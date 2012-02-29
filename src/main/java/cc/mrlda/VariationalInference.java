@@ -15,6 +15,7 @@ import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IOUtils;
@@ -33,7 +34,6 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
-import cc.mrlda.Settings.ParameterCounter;
 import cc.mrlda.util.Approximation;
 import cc.mrlda.util.FileMerger;
 
@@ -46,7 +46,11 @@ import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.util.map.HMapIV;
 
 public class VariationalInference extends Configured implements Tool {
-  private final Logger sLogger = Logger.getLogger(VariationalInference.class);
+  static final Logger sLogger = Logger.getLogger(VariationalInference.class);
+
+  static enum ParameterCounter {
+    TOTAL_DOC, TOTAL_TERM, LOG_LIKELIHOOD, CONFIG_TIME, TRAINING_TIME, DUMMY_COUNTER,
+  }
 
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
@@ -59,7 +63,6 @@ public class VariationalInference extends Configured implements Tool {
         .withDescription("output directory").create(Settings.OUTPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("number of terms").create(Settings.TERM_OPTION));
-
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("number of topics (default - " + Settings.DEFAULT_NUMBER_OF_TOPICS + ")")
         .create(Settings.TOPIC_OPTION));
@@ -83,13 +86,12 @@ public class VariationalInference extends Configured implements Tool {
             "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
         .create(Settings.REDUCER_OPTION));
 
-    // options.addOption(OptionBuilder.withArgName("property=value").hasArgs(2).withValueSeparator()
-    // .withDescription("assign value for given property").create("D"));
-
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArgs(2)
-        .withValueSeparator(Settings.STAR)
+    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArgs()
         .withDescription("run program in inference mode, i.e. test held-out likelihood")
         .create(Settings.INFERENCE_MODE_OPTION));
+
+    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArgs()
+        .withDescription("seed informed prior").create(InformedPrior.INFORMED_PRIOR_OPTION));
 
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("the iteration/index of current model parameters")
@@ -118,6 +120,8 @@ public class VariationalInference extends Configured implements Tool {
     String modelPath = null;
     int snapshotIndex = 0;
     boolean training = Settings.LEARNING_MODE;
+
+    Path informedPrior = null;
 
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -208,6 +212,16 @@ public class VariationalInference extends Configured implements Tool {
               + " ignored in testing mode...");
         }
       }
+
+      if (line.hasOption(InformedPrior.INFORMED_PRIOR_OPTION)) {
+        if (!training) {
+          sLogger.info("Warning: " + InformedPrior.INFORMED_PRIOR_OPTION
+              + " ignored in test mode...");
+        } else {
+          informedPrior = new Path(line.getOptionValue(InformedPrior.INFORMED_PRIOR_OPTION));
+          // Preconditions.checkArgument(eta.getName().startsWith(InformedPrior.ETA));
+        }
+      }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
       formatter.printHelp(VariationalInference.class.getName(), options);
@@ -230,11 +244,7 @@ public class VariationalInference extends Configured implements Tool {
     sLogger.info(" - training mode: " + training);
     sLogger.info(" - random start gamma: " + randomStartGamma);
     sLogger.info(" - resume training: " + resume);
-
-    // String lambdaPath = null;
-    // if (args.length == 8) {
-    // lambdaPath = args[7];
-    // }
+    sLogger.info(" - informed prior: " + informedPrior);
 
     JobConf conf = new JobConf(VariationalInference.class);
     FileSystem fs = FileSystem.get(conf);
@@ -244,6 +254,13 @@ public class VariationalInference extends Configured implements Tool {
     if (!resume && fs.exists(outputDir)) {
       fs.delete(outputDir, true);
       fs.mkdirs(outputDir);
+    }
+
+    Path eta = new Path(outputPath + InformedPrior.ETA);
+    if (informedPrior != null) {
+      Preconditions.checkArgument(fs.exists(informedPrior) && fs.isFile(informedPrior),
+          "Illegal informed prior file...");
+      FileUtil.copy(fs, informedPrior, fs, eta, false, conf);
     }
 
     Path inputDir = new Path(inputPath);
@@ -309,9 +326,10 @@ public class VariationalInference extends Configured implements Tool {
       Preconditions.checkArgument(fs.exists(alphaDir), "Missing model parameter alpha...");
       DistributedCache.addCacheFile(alphaDir.toUri(), conf);
 
-      // if (lambdaPath != null && FileSystem.get(conf).exists(new Path(lambdaPath))) {
-      // DistributedCache.addCacheFile(new Path(lambdaPath).toUri(), conf);
-      // }
+      if (eta != null) {
+        Preconditions.checkArgument(fs.exists(eta), "Informed prior does not exist...");
+        DistributedCache.addCacheFile(eta.toUri(), conf);
+      }
 
       conf.setFloat(Settings.PROPERTY_PREFIX + "model.mapper.converge.gamma",
           Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD);
@@ -323,9 +341,7 @@ public class VariationalInference extends Configured implements Tool {
       conf.setInt(Settings.PROPERTY_PREFIX + "model.topics", numberOfTopics);
       conf.setInt(Settings.PROPERTY_PREFIX + "corpus.terms", numberOfTerms);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.train", training);
-
-      // conf.setInt("mapred.task.timeout", 30 * 60 * 1000);
-      // conf.set("mapred.child.java.opts", "-Xmx2048m");
+      conf.setBoolean(Settings.PROPERTY_PREFIX + "model.informed.prior", eta != null);
 
       conf.setNumMapTasks(mapperTasks);
       if (training) {
@@ -340,8 +356,8 @@ public class VariationalInference extends Configured implements Tool {
       }
 
       if (!randomStartGamma || !training) {
-        MultipleOutputs.addMultiNamedOutput(conf, Settings.GAMMA,
-            SequenceFileOutputFormat.class, IntWritable.class, Document.class);
+        MultipleOutputs.addMultiNamedOutput(conf, Settings.GAMMA, SequenceFileOutputFormat.class,
+            IntWritable.class, Document.class);
       }
 
       conf.setMapperClass(DocumentMapper.class);

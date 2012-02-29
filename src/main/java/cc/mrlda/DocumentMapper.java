@@ -18,14 +18,13 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
-import cc.mrlda.Settings.ParameterCounter;
+import cc.mrlda.VariationalInference.ParameterCounter;
 import cc.mrlda.util.Approximation;
 import cc.mrlda.util.LogMath;
 import cern.jet.stat.Gamma;
 
 import com.google.common.base.Preconditions;
 
-import edu.umd.cloud9.io.array.ArrayListOfIntsWritable;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.util.map.HMapII;
 import edu.umd.cloud9.util.map.HMapIV;
@@ -111,7 +110,7 @@ public class DocumentMapper extends MapReduceBase implements
                 alphaSum += value;
               }
               likelihoodAlpha = Gamma.logGamma(alphaSum) - sumLnGammaAlpha;
-            } else if (path.getName().startsWith(Settings.ETA)) {
+            } else if (path.getName().startsWith(InformedPrior.ETA)) {
               // beta = parseEta(sequenceFileReader, numberOfTopics);
               continue;
             } else {
@@ -382,41 +381,42 @@ public class DocumentMapper extends MapReduceBase implements
     return beta.get(termID);
   }
 
-  /**
-   * @deprecated
-   * @param sequenceFileReader
-   * @param numberOfTopics
-   * @return
-   * @throws IOException
-   */
-  public static HMapIV<double[]> parseEta(SequenceFile.Reader sequenceFileReader, int numberOfTopics)
-      throws IOException {
-    HMapIV<double[]> beta = new HMapIV<double[]>();
-
-    IntWritable intWritable = new IntWritable();
-    ArrayListOfIntsWritable arrayListOfInts = new ArrayListOfIntsWritable();
-
-    // TODO: normalize eta
-    while (sequenceFileReader.next(intWritable, arrayListOfInts)) {
-      Preconditions.checkArgument(intWritable.get() > 0 && intWritable.get() <= numberOfTopics,
-          "Invalid eta prior for term " + intWritable.get() + "...");
-
-      // topic is from 1 to K
-      int topicIndex = intWritable.get() - 1;
-
-      Iterator<Integer> itr = arrayListOfInts.iterator();
-      while (itr.hasNext()) {
-        int wordIndex = itr.next();
-        if (!beta.containsKey(wordIndex)) {
-          double[] vector = new double[numberOfTopics];
-          for (int i = 0; i < vector.length; i++) {
-            vector[i] = Settings.DEFAULT_UNINFORMED_LOG_ETA;
-          }
-        }
-        beta.get(wordIndex)[topicIndex] = Settings.DEFAULT_INFORMED_LOG_ETA;
-      }
-    }
-
-    return beta;
-  }
+  // /**
+  // * @deprecated
+  // * @param sequenceFileReader
+  // * @param numberOfTopics
+  // * @return
+  // * @throws IOException
+  // */
+  // public static HMapIV<double[]> parseEta(SequenceFile.Reader sequenceFileReader, int
+  // numberOfTopics)
+  // throws IOException {
+  // HMapIV<double[]> beta = new HMapIV<double[]>();
+  //
+  // IntWritable intWritable = new IntWritable();
+  // ArrayListOfIntsWritable arrayListOfInts = new ArrayListOfIntsWritable();
+  //
+  // // TODO: normalize eta
+  // while (sequenceFileReader.next(intWritable, arrayListOfInts)) {
+  // Preconditions.checkArgument(intWritable.get() > 0 && intWritable.get() <= numberOfTopics,
+  // "Invalid eta prior for term " + intWritable.get() + "...");
+  //
+  // // topic is from 1 to K
+  // int topicIndex = intWritable.get() - 1;
+  //
+  // Iterator<Integer> itr = arrayListOfInts.iterator();
+  // while (itr.hasNext()) {
+  // int wordIndex = itr.next();
+  // if (!beta.containsKey(wordIndex)) {
+  // double[] vector = new double[numberOfTopics];
+  // for (int i = 0; i < vector.length; i++) {
+  // vector[i] = Settings.DEFAULT_UNINFORMED_LOG_ETA;
+  // }
+  // }
+  // beta.get(wordIndex)[topicIndex] = Settings.DEFAULT_INFORMED_LOG_ETA;
+  // }
+  // }
+  //
+  // return beta;
+  // }
 }
