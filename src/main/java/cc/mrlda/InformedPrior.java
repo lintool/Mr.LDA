@@ -23,7 +23,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -32,8 +31,6 @@ import org.apache.log4j.Logger;
 import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.array.ArrayListOfIntsWritable;
-import edu.umd.cloud9.io.pair.PairOfIntString;
-import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.util.map.HMapIV;
 
 public class InformedPrior extends Configured implements Tool {

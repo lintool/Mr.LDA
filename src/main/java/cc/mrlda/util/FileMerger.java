@@ -8,6 +8,7 @@ import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileStatus;
@@ -37,7 +38,6 @@ import org.apache.log4j.Logger;
 import cc.mrlda.Settings;
 
 import com.google.common.base.Preconditions;
-import com.sun.xml.internal.rngom.parse.compact.ParseException;
 
 public class FileMerger extends Configured implements Tool {
   private static final Logger sLogger = Logger.getLogger(FileMerger.class);
@@ -53,8 +53,19 @@ public class FileMerger extends Configured implements Tool {
 
   public static final String FILE_CONTENT_DELIMITER = "";
 
+  /**
+   * This method merges all files (in {@link TextFormat}) specified by the glob expression
+   * <code>inputFiles<code>
+   * 
+   * @param inputFiles
+   * @param outputFile
+   * @param numberOfMappers
+   * @param deleteSource
+   * @return
+   * @throws IOException
+   */
   public static Path mergeTextFiles(String inputFiles, String outputFile, int numberOfMappers,
-      boolean deleteSource) throws Exception {
+      boolean deleteSource) throws IOException {
     if (numberOfMappers <= 0) {
       return mergeTextFiles(inputFiles, outputFile, deleteSource);
     } else {
@@ -65,8 +76,8 @@ public class FileMerger extends Configured implements Tool {
 
   /**
    * @param inputFiles a glob expression of the files to be merged
-   * @param outputFile
-   * @param deleteSource
+   * @param outputFile a destination file path
+   * @param deleteSource delete source files after merging
    * @return
    * @throws IOException
    */
@@ -88,7 +99,7 @@ public class FileMerger extends Configured implements Tool {
 
   public static Path mergeSequenceFiles(String inputFiles, String outputFile, int numberOfMappers,
       Class<? extends Writable> keyClass, Class<? extends Writable> valueClass, boolean deleteSource)
-      throws Exception {
+      throws IOException, InstantiationException, IllegalAccessException {
     if (numberOfMappers <= 0) {
       return mergeSequenceFiles(inputFiles, outputFile, keyClass, valueClass, deleteSource);
     } else {
@@ -143,10 +154,9 @@ public class FileMerger extends Configured implements Tool {
   private static Path mergeFilesDistribute(String inputFiles, String outputFile,
       int numberOfMappers, Class<? extends Writable> keyClass,
       Class<? extends Writable> valueClass, Class<? extends FileInputFormat> fileInputClass,
-      Class<? extends FileOutputFormat> fileOutputClass, boolean deleteSource) throws Exception {
+      Class<? extends FileOutputFormat> fileOutputClass, boolean deleteSource) throws IOException {
     JobConf conf = new JobConf(FileMerger.class);
     conf.setJobName(FileMerger.class.getSimpleName());
-
     FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + FileMerger.class.getSimpleName());
@@ -205,7 +215,7 @@ public class FileMerger extends Configured implements Tool {
   }
 
   @Override
-  public int run(String[] args) throws Exception {
+  public int run(String[] args) throws IOException {
     Options options = new Options();
 
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
@@ -231,9 +241,6 @@ public class FileMerger extends Configured implements Tool {
 
     String inputPath = "";
     String outputPath = "";
-
-    Class<? extends Writable> keyClass = LongWritable.class;
-    Class<? extends Writable> valueClass = Text.class;
 
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -284,6 +291,23 @@ public class FileMerger extends Configured implements Tool {
       System.exit(0);
     }
 
+    try {
+      merge(inputPath, outputPath, mapperTasks, textFileFormat, deleteSource);
+    } catch (InstantiationException ie) {
+      ie.printStackTrace();
+    } catch (IllegalAccessException iae) {
+      iae.printStackTrace();
+    }
+
+    return 0;
+  }
+
+  public static Path merge(String inputPath, String outputPath, int mapperTasks,
+      boolean textFileFormat, boolean deleteSource) throws IOException, InstantiationException,
+      IllegalAccessException {
+    Class<? extends Writable> keyClass = LongWritable.class;
+    Class<? extends Writable> valueClass = Text.class;
+
     FileSystem fs = FileSystem.get(new Configuration());
     if (!textFileFormat) {
       FileStatus[] fileStatus = fs.globStatus(new Path(inputPath));
@@ -301,12 +325,11 @@ public class FileMerger extends Configured implements Tool {
     }
 
     if (textFileFormat) {
-      mergeTextFiles(inputPath, outputPath, mapperTasks, deleteSource);
+      return mergeTextFiles(inputPath, outputPath, mapperTasks, deleteSource);
     } else {
-      mergeSequenceFiles(inputPath, outputPath, mapperTasks, keyClass, valueClass, deleteSource);
+      return mergeSequenceFiles(inputPath, outputPath, mapperTasks, keyClass, valueClass,
+          deleteSource);
     }
-
-    return 0;
   }
 
   public static void main(String[] args) throws Exception {

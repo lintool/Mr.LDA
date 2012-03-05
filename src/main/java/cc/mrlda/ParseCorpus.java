@@ -536,7 +536,7 @@ public class ParseCorpus extends Configured implements Tool {
 
     FileInputFormat.setInputPaths(conf, inputDocumentFiles);
     FileOutputFormat.setOutputPath(conf, outputDocumentFiles);
-    FileOutputFormat.setCompressOutput(conf, true);
+    FileOutputFormat.setCompressOutput(conf, false);
 
     long startTime = System.currentTimeMillis();
     RunningJob job = JobClient.runJob(conf);

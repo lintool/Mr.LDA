@@ -1,8 +1,9 @@
 package cc.mrlda;
 
 public class Settings extends cc.mrlda.util.Settings {
-
-
+  public static final String TRUNCATE_BETA_OPTION = "truncatebeta";
+  public static final double ETA = Math.log(1e-8);
+  public static final String MAPPER_COMBINER_OPTION = "mappercombiner";
   // set the minimum memory threshold, in bytes
   public static final int MEMORY_THRESHOLD = 64 * 1024 * 1024;
 
@@ -10,10 +11,8 @@ public class Settings extends cc.mrlda.util.Settings {
   public static final String TERM_OPTION = "term";
   public static final String ITERATION_OPTION = "iteration";
 
-  // todo: add in inference code
   public static final String INFERENCE_MODE_OPTION = "test";
   public static final String RANDOM_START_GAMMA_OPTION = "randomstart";
-  // todo: add in result option in code
   public static final String RESUME_OPTION = "modelindex";
 
   public static final int DEFAULT_NUMBER_OF_TOPICS = 100;
@@ -31,9 +30,7 @@ public class Settings extends cc.mrlda.util.Settings {
   public static final String BETA = "beta";
   public static final String ALPHA = "alpha";
 
-  public static final float DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD = 0.0001f;
-  public static final float DEFAULT_GAMMA_UPDATE_CONVERGE_CRITERIA = 0.0001f;
-  public static final int DEFAULT_GAMMA_UPDATE_MAXIMUM_ITERATION = 50;
+  public static final int MAXIMUM_GAMMA_ITERATION = 10;
 
   public static final float DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD = 0.000001f;
   public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION = 1000;

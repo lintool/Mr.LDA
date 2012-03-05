@@ -2,7 +2,9 @@ package cc.mrlda;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
@@ -30,10 +32,16 @@ import edu.umd.cloud9.util.map.HMapIV;
 
 public class TermReducer extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, IntWritable, DoubleWritable> {
+  boolean truncateBeta = false;
+  // double truncationThreshold = Math.log(0.001);
+  int truncationSize = 1000;
+  TreeMap<Double, Integer> treeMap = new TreeMap<Double, Integer>();
+  Iterator<Entry<Double, Integer>> itr = null;
+
   private static HMapIV<Set<Integer>> lambdaMap = null;
 
-  private static int numberOfTerms;
-  private static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
+  // private static int numberOfTerms;
+  // private static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
   private static boolean learning = Settings.LEARNING_MODE;
 
   private int topicIndex = 0;
@@ -51,10 +59,12 @@ public class TermReducer extends MapReduceBase implements
   public void configure(JobConf conf) {
     multipleOutputs = new MultipleOutputs(conf);
 
-    numberOfTerms = conf.getInt(Settings.PROPERTY_PREFIX + "corpus.terms", Integer.MAX_VALUE);
-    numberOfTopics = conf.getInt(Settings.PROPERTY_PREFIX + "model.topics",
-        Settings.DEFAULT_NUMBER_OF_TOPICS);
+    // numberOfTerms = conf.getInt(Settings.PROPERTY_PREFIX + "corpus.terms", Integer.MAX_VALUE);
+    // numberOfTopics = conf.getInt(Settings.PROPERTY_PREFIX + "model.topics",
+    // Settings.DEFAULT_NUMBER_OF_TOPICS);
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
+
+    truncateBeta = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", false);
 
     boolean informedPrior = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.informed.prior",
         false);
@@ -70,13 +80,14 @@ public class TermReducer extends MapReduceBase implements
           try {
             sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
 
-            if (path.getName().startsWith(Settings.BETA)) {
+            if (path.getName().startsWith(Settings.ALPHA)) {
+              continue;
+            } else if (path.getName().startsWith(Settings.BETA)) {
               continue;
             } else if (path.getName().startsWith(InformedPrior.ETA)) {
               Preconditions.checkArgument(lambdaMap == null,
                   "Lambda matrix was initialized already...");
               lambdaMap = InformedPrior.importEta(sequenceFileReader);
-
             } else {
               throw new IllegalArgumentException("Unexpected file in distributed cache: "
                   + path.getName());
@@ -97,15 +108,15 @@ public class TermReducer extends MapReduceBase implements
     Preconditions.checkArgument(informedPrior == (lambdaMap != null),
         "Fail to initialize informed prior...");
 
-    System.out.println("======================================================================");
-    System.out.println("Available processors (cores): "
-        + Runtime.getRuntime().availableProcessors());
-    long maxMemory = Runtime.getRuntime().maxMemory();
-    System.out.println("Maximum memory (bytes): "
-        + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
-    System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
-    System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
-    System.out.println("======================================================================");
+    // System.out.println("======================================================================");
+    // System.out.println("Available processors (cores): "
+    // + Runtime.getRuntime().availableProcessors());
+    // long maxMemory = Runtime.getRuntime().maxMemory();
+    // System.out.println("Maximum memory (bytes): "
+    // + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
+    // System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
+    // System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
+    // System.out.println("======================================================================");
   }
 
   public void reduce(PairOfInts key, Iterator<DoubleWritable> values,
@@ -135,38 +146,79 @@ public class TermReducer extends MapReduceBase implements
       phiValue = LogMath.add(phiValue, values.next().get());
     }
 
+    if (lambdaMap != null) {
+      phiValue = LogMath.add(
+          InformedPrior.getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
+    }
+
     if (topicIndex != key.getLeftElement()) {
       if (topicIndex == 0) {
         outputBeta = multipleOutputs.getCollector(Settings.BETA, Settings.BETA, reporter);
       } else {
         outputKey.set(topicIndex, (float) normalizeFactor);
+
+        if (truncateBeta) {
+          itr = treeMap.entrySet().iterator();
+          Entry<Double, Integer> temp = null;
+          outputValue.clear();
+          while (itr.hasNext()) {
+            temp = itr.next();
+            outputValue.put(temp.getValue(), temp.getKey().floatValue());
+          }
+        }
+
         outputBeta.collect(outputKey, outputValue);
       }
 
       topicIndex = key.getLeftElement();
-      if (lambdaMap != null) {
-        phiValue = LogMath.add(
-            InformedPrior.getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
-      }
       normalizeFactor = phiValue;
-      outputValue.clear();
-      outputValue.put(key.getRightElement(), (float) phiValue);
-    } else {
-      if (lambdaMap != null) {
-        phiValue = LogMath.add(
-            InformedPrior.getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
+      if (truncateBeta) {
+        treeMap.clear();
+        treeMap.put(phiValue, key.getRightElement());
+      } else {
+        outputValue.clear();
+        outputValue.put(key.getRightElement(), (float) phiValue);
       }
-      normalizeFactor = LogMath.add(normalizeFactor, phiValue);
-      outputValue.put(key.getRightElement(), (float) phiValue);
+    } else {
+      if (truncateBeta) {
+        if (treeMap.size() >= truncationSize) {
+          if (treeMap.firstKey() < phiValue) {
+            normalizeFactor = Math.log(Math.exp(normalizeFactor) - Math.exp(treeMap.firstKey()));
+            treeMap.remove(treeMap.firstKey());
+
+            treeMap.put(phiValue, key.getRightElement());
+            normalizeFactor = LogMath.add(normalizeFactor, phiValue);
+          }
+        } else {
+          treeMap.put(phiValue, key.getRightElement());
+          normalizeFactor = LogMath.add(normalizeFactor, phiValue);
+        }
+      } else {
+        normalizeFactor = LogMath.add(normalizeFactor, phiValue);
+        outputValue.put(key.getRightElement(), (float) phiValue);
+      }
     }
   }
 
   public void close() throws IOException {
-    if (!outputValue.isEmpty()) {
-      outputKey.set(topicIndex, (float) normalizeFactor);
-      outputBeta.collect(outputKey, outputValue);
+    if (truncateBeta) {
+      if (!treeMap.isEmpty()) {
+        outputKey.set(topicIndex, (float) normalizeFactor);
+        itr = treeMap.entrySet().iterator();
+        Entry<Double, Integer> temp = null;
+        outputValue.clear();
+        while (itr.hasNext()) {
+          temp = itr.next();
+          outputValue.put(temp.getValue(), temp.getKey().floatValue());
+        }
+        outputBeta.collect(outputKey, outputValue);
+      }
+    } else {
+      if (!outputValue.isEmpty()) {
+        outputKey.set(topicIndex, (float) normalizeFactor);
+        outputBeta.collect(outputKey, outputValue);
+      }
     }
     multipleOutputs.close();
   }
-
 }

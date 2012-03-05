@@ -15,6 +15,7 @@ import edu.umd.cloud9.util.map.HMapII;
 public class DocumentTest {
   public static double PRECISION = 1e-12;
 
+  @Test
   public void testConstructor1() {
     Document doc1 = new Document();
     assertTrue(doc1.getGamma() == null);
@@ -25,6 +26,7 @@ public class DocumentTest {
     assertEquals(doc1.getNumberOfWords(), 0);
   }
 
+  @Test
   public void testConstructor2() {
     HMapII hmap1 = new HMapII();
     hmap1.put(1, 22);
@@ -46,13 +48,14 @@ public class DocumentTest {
     }
   }
 
+  @Test
   public void testConstructor3() {
     HMapII hmap1 = new HMapII();
     hmap1.put(1, 22);
     hmap1.put(2, 5);
     hmap1.put(3, 10);
 
-    float[] array1 = new float[2];
+    double[] array1 = new double[2];
     array1[0] = 0.238573f;
     array1[1] = 1.59382f;
 
@@ -75,6 +78,7 @@ public class DocumentTest {
     }
   }
 
+  @Test
   public void testSetDocument() {
     Document doc1 = new Document();
     assertTrue(doc1.getGamma() == null);
@@ -119,7 +123,7 @@ public class DocumentTest {
     hmap1.put(2, 5);
     hmap1.put(3, 10);
 
-    float[] array1 = new float[2];
+    double[] array1 = new double[2];
     array1[0] = 0.238573f;
     array1[1] = 1.59382f;
 
@@ -130,7 +134,7 @@ public class DocumentTest {
 
     Document doc2 = Document.create(doc1.serialize());
     HMapII hmap2 = doc2.getContent();
-    float[] array2 = doc2.getGamma();
+    double[] array2 = doc2.getGamma();
 
     assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
@@ -155,7 +159,7 @@ public class DocumentTest {
     hmap1.put(1, 22);
     hmap1.put(2, 5);
     hmap1.put(3, 10);
-    float[] array1 = null;
+    double[] array1 = null;
 
     Document doc1 = new Document(hmap1, array1);
 
@@ -166,7 +170,7 @@ public class DocumentTest {
 
     Document doc2 = Document.create(doc1.serialize());
     HMapII hmap2 = doc2.getContent();
-    float[] array2 = doc2.getGamma();
+    double[] array2 = doc2.getGamma();
 
     assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
@@ -184,7 +188,7 @@ public class DocumentTest {
   @Test
   public void testSerialize3() throws IOException {
     HMapII hmap1 = null;
-    float[] array1 = new float[2];
+    double[] array1 = new double[2];
     array1[0] = 0.238573f;
     array1[1] = 1.59382f;
 
@@ -197,7 +201,7 @@ public class DocumentTest {
     Document doc2 = Document.create(doc1.serialize());
 
     HMapII hmap2 = doc2.getContent();
-    float[] array2 = doc2.getGamma();
+    double[] array2 = doc2.getGamma();
 
     assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
@@ -210,15 +214,10 @@ public class DocumentTest {
     }
   }
 
-  /**
-   * Test
-   * 
-   * @throws IOException
-   */
   @Test
   public void testSerialize4() throws IOException {
     HMapII hmap1 = null;
-    float[] array1 = null;
+    double[] array1 = null;
 
     Document doc1 = new Document(hmap1, array1);
     assertEquals(doc1.getNumberOfTopics(), 0);
@@ -230,7 +229,7 @@ public class DocumentTest {
     Document doc2 = Document.create(doc1.serialize());
 
     HMapII hmap2 = doc2.getContent();
-    float[] array2 = doc2.getGamma();
+    double[] array2 = doc2.getGamma();
 
     assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
@@ -239,11 +238,6 @@ public class DocumentTest {
     assertEquals(array2, array1);
   }
 
-  /**
-   * Test assigning new gamma
-   * 
-   * @throws IOException
-   */
   @Test
   public void testSerialize5() throws IOException {
     HMapII hmap1 = new HMapII();
@@ -257,7 +251,7 @@ public class DocumentTest {
     assertEquals(doc1.getNumberOfTopics(), 0);
     assertEquals(doc1.getGamma(), null);
 
-    float[] array1 = new float[2];
+    double[] array1 = new double[2];
     array1[0] = 0.238573f;
     array1[1] = 1.59382f;
 
@@ -268,7 +262,7 @@ public class DocumentTest {
 
     Document doc2 = Document.create(doc1.serialize());
     HMapII hmap2 = doc2.getContent();
-    float[] array2 = doc2.getGamma();
+    double[] array2 = doc2.getGamma();
 
     assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());

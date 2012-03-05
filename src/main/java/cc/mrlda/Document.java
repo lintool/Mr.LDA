@@ -29,7 +29,7 @@ public class Document implements Writable, Cloneable, Serializable {
   /**
    * @deprecated
    */
-  private float[] gamma = null;
+  private double[] gamma = null;
 
   /**
    * Define the total number of words in this document, not necessarily distinct.
@@ -79,7 +79,7 @@ public class Document implements Writable, Cloneable, Serializable {
    * @param document
    * @param gamma
    */
-  public Document(HMapII document, float[] gamma) {
+  public Document(HMapII document, double[] gamma) {
     this(document);
     this.gamma = gamma;
   }
@@ -90,7 +90,7 @@ public class Document implements Writable, Cloneable, Serializable {
    * @param numberOfTopics
    */
   public Document(HMapII document, int numberOfTopics) {
-    this(document, new float[numberOfTopics]);
+    this(document, new double[numberOfTopics]);
   }
 
   public HMapII getContent() {
@@ -101,7 +101,7 @@ public class Document implements Writable, Cloneable, Serializable {
    * @deprecated
    * @return
    */
-  public float[] getGamma() {
+  public double[] getGamma() {
     return gamma;
   }
 
@@ -164,9 +164,9 @@ public class Document implements Writable, Cloneable, Serializable {
     if (numTopics <= 0) {
       gamma = null;
     } else {
-      gamma = new float[numTopics];
+      gamma = new double[numTopics];
       for (int i = 0; i < numTopics; i++) {
-        gamma[i] = in.readFloat();
+        gamma[i] = in.readDouble();
       }
     }
   }
@@ -201,7 +201,7 @@ public class Document implements Writable, Cloneable, Serializable {
    * @deprecated
    * @param gamma
    */
-  public void setGamma(float[] gamma) {
+  public void setGamma(double[] gamma) {
     this.gamma = gamma;
   }
 
@@ -224,7 +224,7 @@ public class Document implements Writable, Cloneable, Serializable {
     if (gamma == null) {
       document.append("null");
     } else {
-      for (float value : gamma) {
+      for (double value : gamma) {
         document.append(value);
         document.append(" ");
       }
@@ -255,8 +255,9 @@ public class Document implements Writable, Cloneable, Serializable {
       out.writeInt(0);
     } else {
       out.writeInt(gamma.length);
-      for (float value : gamma) {
-        out.writeFloat(value);
+      for (double value : gamma) {
+        // TODO: change it to double and also in read method
+        out.writeDouble(value);
       }
     }
   }

@@ -19,9 +19,8 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
 import cc.mrlda.VariationalInference.ParameterCounter;
-import cc.mrlda.util.Approximation;
+import cc.mrlda.util.Gamma;
 import cc.mrlda.util.LogMath;
-import cern.jet.stat.Gamma;
 
 import com.google.common.base.Preconditions;
 
@@ -31,6 +30,11 @@ import edu.umd.cloud9.util.map.HMapIV;
 
 public class DocumentMapper extends MapReduceBase implements
     Mapper<IntWritable, Document, PairOfInts, DoubleWritable> {
+  boolean mapperCombiner = false;
+  Hashtable<Integer, double[]> totalPhi = new Hashtable<Integer, double[]>();
+  double[] totalAlphaSufficientStatistics;
+  OutputCollector<PairOfInts, DoubleWritable> outputCollector;
+
   private long configurationTime = 0;
   private long trainingTime = 0;
 
@@ -40,9 +44,8 @@ public class DocumentMapper extends MapReduceBase implements
   private static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
   private static int numberOfTerms = 0;
 
-  private static double localConvergeForGamma = Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD;
-  private static double localConvergeForCriteria = Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_CRITERIA;
-  private static int localConvergeForIteration = Settings.DEFAULT_GAMMA_UPDATE_MAXIMUM_ITERATION;
+  // private static double localConvergeForGamma = Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD;
+  private static int maximumGammaIteration = Settings.MAXIMUM_GAMMA_ITERATION;
 
   private static boolean learning = Settings.LEARNING_MODE;
   private static boolean randomStartGamma = Settings.RANDOM_START_GAMMA;
@@ -58,9 +61,9 @@ public class DocumentMapper extends MapReduceBase implements
   private static OutputCollector<IntWritable, Document> outputDocument;
 
   private double[] tempBeta = null;
-  private float[] tempGamma = null;
-  private float[] gammaPointer = null;
-  private float[] updateGamma = null;
+  private double[] tempGamma = null;
+  // private double[] gammaPointer = null;
+  private double[] updateGamma = null;
   private Hashtable<Integer, double[]> phiTable = null;
 
   private Iterator<Integer> itr = null;
@@ -73,17 +76,20 @@ public class DocumentMapper extends MapReduceBase implements
         Settings.DEFAULT_NUMBER_OF_TOPICS);
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
 
-    updateGamma = new float[numberOfTopics];
+    mapperCombiner = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.mapper.combiner", false);
+
+    updateGamma = new double[numberOfTopics];
     phiTable = new Hashtable<Integer, double[]>();
 
     multipleOutputs = new MultipleOutputs(conf);
 
-    localConvergeForGamma = conf.getFloat(Settings.PROPERTY_PREFIX + "model.mapper.converge.gamma",
-        Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD);
-    localConvergeForCriteria = conf.getFloat(Settings.PROPERTY_PREFIX
-        + "model.mapper.converge.likelihood", Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_CRITERIA);
-    localConvergeForIteration = conf.getInt(Settings.PROPERTY_PREFIX
-        + "model.mapper.converge.iteration", Settings.DEFAULT_GAMMA_UPDATE_MAXIMUM_ITERATION);
+    // localConvergeForGamma = conf.getFloat(Settings.PROPERTY_PREFIX +
+    // "model.mapper.converge.gamma",
+    // Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD);
+    // localConvergeForCriteria = conf.getFloat(Settings.PROPERTY_PREFIX
+    // + "model.mapper.converge.likelihood", Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_CRITERIA);
+    maximumGammaIteration = conf.getInt(Settings.PROPERTY_PREFIX
+        + "model.mapper.converge.iteration", Settings.MAXIMUM_GAMMA_ITERATION);
 
     SequenceFile.Reader sequenceFileReader = null;
     try {
@@ -106,10 +112,10 @@ public class DocumentMapper extends MapReduceBase implements
               alpha = VariationalInference.importAlpha(sequenceFileReader, numberOfTopics);
               double sumLnGammaAlpha = 0;
               for (double value : alpha) {
-                sumLnGammaAlpha += Gamma.logGamma(value);
+                sumLnGammaAlpha += Gamma.lngamma(value);
                 alphaSum += value;
               }
-              likelihoodAlpha = Gamma.logGamma(alphaSum) - sumLnGammaAlpha;
+              likelihoodAlpha = Gamma.lngamma(alphaSum) - sumLnGammaAlpha;
             } else if (path.getName().startsWith(InformedPrior.ETA)) {
               // beta = parseEta(sequenceFileReader, numberOfTopics);
               continue;
@@ -130,15 +136,31 @@ public class DocumentMapper extends MapReduceBase implements
       ioe.printStackTrace();
     }
 
-    System.out.println("======================================================================");
-    System.out.println("Available processors (cores): "
-        + Runtime.getRuntime().availableProcessors());
-    long maxMemory = Runtime.getRuntime().maxMemory();
-    System.out.println("Maximum memory (bytes): "
-        + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
-    System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
-    System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
-    System.out.println("======================================================================");
+    if (beta == null) {
+      beta = new HMapIV<double[]>();
+    }
+    if (alpha == null) {
+      alpha = new double[numberOfTopics];
+      double alphaLnGammaSum = 0;
+      for (int i = 0; i < numberOfTopics; i++) {
+        alpha[i] = Math.random();
+        alphaSum += alpha[i];
+        alphaLnGammaSum += Gamma.lngamma(alpha[i]);
+      }
+      likelihoodAlpha = Gamma.lngamma(alphaSum) - alphaLnGammaSum;
+    }
+
+    totalAlphaSufficientStatistics = new double[numberOfTopics];
+
+    // System.out.println("======================================================================");
+    // System.out.println("Available processors (cores): "
+    // + Runtime.getRuntime().availableProcessors());
+    // long maxMemory = Runtime.getRuntime().maxMemory();
+    // System.out.println("Maximum memory (bytes): "
+    // + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
+    // System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
+    // System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
+    // System.out.println("======================================================================");
 
     configurationTime = System.currentTimeMillis() - configurationTime;
   }
@@ -151,18 +173,6 @@ public class DocumentMapper extends MapReduceBase implements
     trainingTime = System.currentTimeMillis();
 
     double likelihoodPhi = 0;
-    double likelihoodGamma = 0;
-
-    if (alpha == null) {
-      alpha = new double[numberOfTopics];
-      double alphaLnGammaSum = 0;
-      for (int i = 0; i < numberOfTopics; i++) {
-        alpha[i] = Math.random();
-        alphaSum += alpha[i];
-        alphaLnGammaSum += Gamma.logGamma(alpha[i]);
-      }
-      likelihoodAlpha = Gamma.logGamma(alphaSum) - alphaLnGammaSum;
-    }
 
     // initialize tempGamma for computing
     if (value.getGamma() != null && value.getNumberOfTopics() == numberOfTopics
@@ -170,124 +180,160 @@ public class DocumentMapper extends MapReduceBase implements
       // TODO: set up mechanisms to prevent starting from some irrelevant gamma value
       tempGamma = value.getGamma();
     } else {
-      tempGamma = new float[numberOfTopics];
+      tempGamma = new double[numberOfTopics];
       for (int i = 0; i < numberOfTopics; i++) {
-        tempGamma[i] = (float) (alpha[i] + 1.0f * value.getNumberOfWords() / numberOfTopics);
+        tempGamma[i] = alpha[i] + 1.0f * value.getNumberOfWords() / numberOfTopics;
       }
     }
 
-    double[] phi = new double[numberOfTopics];
-
-    double sumGamma = 0;
-    boolean keepGoing = true;
-    double lastDocumentLikelihood = 1.0;
+    double[] phi = null;// new double[numberOfTopics];
+    // boolean keepGoing = true;
     // be careful when adjust this initial value
     int gammaUpdateIterationCount = 1;
+    HMapII content = value.getContent();
 
-    while (keepGoing) {
+    do {
       likelihoodPhi = 0;
-      likelihoodGamma = 0;
 
-      phiTable.clear();
       for (int i = 0; i < numberOfTopics; i++) {
-        updateGamma[i] = (float) Math.log(alpha[i]);
+        tempGamma[i] = Gamma.digamma(tempGamma[i]);
+        updateGamma[i] = Math.log(alpha[i]);
       }
 
-      HMapII content = value.getContent();
       // TODO: add in null check for content
       itr = content.keySet().iterator();
-
       while (itr.hasNext()) {
         int termID = itr.next();
         int termCounts = content.get(termID);
         // acquire the corresponding beta vector for this term
         tempBeta = retrieveBeta(numberOfTopics, beta, termID, numberOfTerms);
-        phi = new double[numberOfTopics];
+        if (phiTable.containsKey(termID)) {
+          // reuse existing object
+          phi = phiTable.get(termID);
+        } else {
+          phi = new double[numberOfTopics];
+          phiTable.put(termID, phi);
+        }
+
         likelihoodPhi += updatePhi(numberOfTopics, termCounts, tempBeta, tempGamma, phi,
             updateGamma);
-        phiTable.put(termID, phi);
       }
 
-      if (Math.random() < 0.1) {
-        reporter.incrCounter(ParameterCounter.DUMMY_COUNTER, 1);
-      }
-
-      // compute the sum of gamma vector
-      sumGamma = 0;
       for (int i = 0; i < numberOfTopics; i++) {
-        updateGamma[i] = (float) Math.exp(updateGamma[i]);
-        sumGamma += updateGamma[i];
+        tempGamma[i] = Math.exp(updateGamma[i]);
       }
 
-      // check for local converge on gamma
-      keepGoing = false;
-      for (int i = 0; i < numberOfTopics; i++) {
-        // compute the converge criteria
-        if (Math.abs((updateGamma[i] - tempGamma[i]) / tempGamma[i]) >= localConvergeForGamma) {
-          keepGoing = true;
-        }
-      }
-
-      likelihoodGamma -= Gamma.logGamma(sumGamma);
-
-      // check for local converge on converge criteria
-      double updateDocumentLikelihood = likelihoodAlpha + likelihoodGamma + likelihoodPhi;
-      if (Math.abs((updateDocumentLikelihood - lastDocumentLikelihood) / lastDocumentLikelihood) <= localConvergeForCriteria) {
-        keepGoing = false;
-      }
-      lastDocumentLikelihood = updateDocumentLikelihood;
-
-      // check for local converge on iteration
-      if (gammaUpdateIterationCount >= localConvergeForIteration) {
-        keepGoing = false;
-      }
       gammaUpdateIterationCount++;
 
-      // swap tempGamma and updateGamma: update tempGamma for next iteration and reuse tempGamma
-      gammaPointer = tempGamma;
-      tempGamma = updateGamma;
-      updateGamma = gammaPointer;
-    }
+      // send out heart-beat message
+      if (Math.random() < 0.01) {
+        reporter.incrCounter(ParameterCounter.DUMMY_COUNTER, 1);
+      }
+    } while (gammaUpdateIterationCount < maximumGammaIteration);
 
     // compute the sum of gamma vector
-    sumGamma = 0;
+    double sumGamma = 0;
+    double likelihoodGamma = 0;
     for (int i = 0; i < numberOfTopics; i++) {
       sumGamma += tempGamma[i];
+      likelihoodGamma += Gamma.lngamma(tempGamma[i]);
     }
+    likelihoodGamma -= Gamma.lngamma(sumGamma);
+    double documentLogLikelihood = likelihoodAlpha + likelihoodGamma + likelihoodPhi;
+    reporter.incrCounter(ParameterCounter.LOG_LIKELIHOOD,
+        (long) (-documentLogLikelihood * Settings.DEFAULT_COUNTER_SCALE));
 
-    if (learning) {
-      itr = phiTable.keySet().iterator();
-      while (itr.hasNext()) {
-        int termID = itr.next();
-        phi = phiTable.get(termID);
-        for (int i = 0; i < numberOfTopics; i++) {
-          outputValue.set(phi[i]);
+    double digammaSumGamma = Gamma.digamma(sumGamma);
 
-          // a *positive* topic index indicates the output is a phi values
-          outputKey.set(i + 1, termID);
-          output.collect(outputKey, outputValue);
+    if (mapperCombiner) {
+      outputCollector = output;
+      if (learning) {
+        if (Runtime.getRuntime().freeMemory() < Settings.MEMORY_THRESHOLD) {
+          itr = totalPhi.keySet().iterator();
+          while (itr.hasNext()) {
+            int termID = itr.next();
+            phi = totalPhi.get(termID);
+            for (int i = 0; i < numberOfTopics; i++) {
+              outputValue.set(phi[i]);
+
+              // a *positive* topic index indicates the output is a phi values
+              outputKey.set(i + 1, termID);
+              output.collect(outputKey, outputValue);
+            }
+          }
+          totalPhi.clear();
+
+          for (int i = 0; i < numberOfTopics; i++) {
+            // a *zero* topic index and a *positive* topic index indicates the output is a term for
+            // alpha updating
+            outputKey.set(0, i + 1);
+            outputValue.set(totalAlphaSufficientStatistics[i]);
+            output.collect(outputKey, outputValue);
+            totalAlphaSufficientStatistics[i] = 0;
+          }
+        }
+
+        itr = content.keySet().iterator();
+        while (itr.hasNext()) {
+          int termID = itr.next();
+          if (termID < 10000) {
+            if (totalPhi.containsKey(termID)) {
+              phi = phiTable.get(termID);
+              tempBeta = totalPhi.get(termID);
+              for (int i = 0; i < numberOfTopics; i++) {
+                tempBeta[i] = LogMath.add(phi[i], tempBeta[i]);
+              }
+            } else {
+              totalPhi.put(termID, phiTable.get(termID));
+            }
+          } else {
+            phi = phiTable.get(termID);
+            for (int i = 0; i < numberOfTopics; i++) {
+              outputValue.set(phi[i]);
+
+              // a *positive* topic index indicates the output is a phi values
+              outputKey.set(i + 1, termID);
+              output.collect(outputKey, outputValue);
+            }
+          }
+
+          for (int i = 0; i < numberOfTopics; i++) {
+            totalAlphaSufficientStatistics[i] += Gamma.digamma(tempGamma[i]) - digammaSumGamma;
+          }
         }
       }
+    } else {
+      if (learning) {
+        itr = content.keySet().iterator();
+        while (itr.hasNext()) {
+          int termID = itr.next();
+          // only get the phi's in of current document
+          phi = phiTable.get(termID);
+          for (int i = 0; i < numberOfTopics; i++) {
+            outputValue.set(phi[i]);
 
-      for (int i = 0; i < numberOfTopics; i++) {
-        // a *zero* topic index and a *positive* topic index indicates the output is a term for
-        // alpha updating
-        outputKey.set(0, i + 1);
-        outputValue.set((Approximation.digamma(tempGamma[i]) - Approximation.digamma(sumGamma)));
-        output.collect(outputKey, outputValue);
+            // a *positive* topic index indicates the output is a phi values
+            outputKey.set(i + 1, termID);
+            output.collect(outputKey, outputValue);
+          }
+        }
+
+        for (int i = 0; i < numberOfTopics; i++) {
+          // a *zero* topic index and a *positive* topic index indicates the output is a term for
+          // alpha updating
+          outputKey.set(0, i + 1);
+          outputValue.set((Gamma.digamma(tempGamma[i]) - digammaSumGamma));
+          output.collect(outputKey, outputValue);
+        }
       }
     }
 
     // output the embedded updated gamma together with document
-    if (!randomStartGamma || !learning) {
+    if (!learning || !randomStartGamma) {
       outputDocument = multipleOutputs.getCollector(Settings.GAMMA, Settings.GAMMA, reporter);
       value.setGamma(tempGamma);
       outputDocument.collect(key, value);
     }
-
-    // accumulate the log_likelihood of current document to job counter.
-    reporter.incrCounter(ParameterCounter.LOG_LIKELIHOOD,
-        (long) (-lastDocumentLikelihood * Settings.DEFAULT_COUNTER_SCALE));
 
     trainingTime = System.currentTimeMillis() - trainingTime;
     reporter.incrCounter(ParameterCounter.TRAINING_TIME, trainingTime);
@@ -295,6 +341,32 @@ public class DocumentMapper extends MapReduceBase implements
 
   public void close() throws IOException {
     multipleOutputs.close();
+
+    if (mapperCombiner) {
+      double[] phi = null;
+      itr = totalPhi.keySet().iterator();
+      while (itr.hasNext()) {
+        int termID = itr.next();
+        phi = totalPhi.get(termID);
+        for (int i = 0; i < numberOfTopics; i++) {
+          outputValue.set(phi[i]);
+
+          // a *positive* topic index indicates the output is a phi values
+          outputKey.set(i + 1, termID);
+          outputCollector.collect(outputKey, outputValue);
+        }
+      }
+      totalPhi.clear();
+
+      for (int i = 0; i < numberOfTopics; i++) {
+        // a *zero* topic index and a *positive* topic index indicates the output is a term for
+        // alpha updating
+        outputKey.set(0, i + 1);
+        outputValue.set(totalAlphaSufficientStatistics[i]);
+        outputCollector.collect(outputKey, outputValue);
+        totalAlphaSufficientStatistics[i] = 0;
+      }
+    }
   }
 
   /**
@@ -302,7 +374,7 @@ public class DocumentMapper extends MapReduceBase implements
    *        model.
    * @param termCounts the term counts associated with the term
    * @param beta the beta vector
-   * @param gamma the gamma vector
+   * @param digammaGamma the gamma vector
    * @param phi the phi vector, take note that phi vector will be updated accordingly.
    * @param phiSum a vector recording the sum of all the phi's over all the terms, seeded from the
    *        caller program, take note that phiSum vector will be updated accordingly.
@@ -315,18 +387,18 @@ public class DocumentMapper extends MapReduceBase implements
    *        take note that updateGamma vector will be updated accordingly
    * @return
    */
-  public static double updatePhi(int numberOfTopics, int termCounts, double[] beta, float[] gamma,
-      double[] phi, float[] updateGamma) {
+  public static double updatePhi(int numberOfTopics, int termCounts, double[] beta,
+      double[] digammaGamma, double[] phi, double[] updateGamma) {
     double convergePhi = 0;
 
     // initialize the normalize factor and the phi vector
     // phi is initialized in log scale
-    phi[0] = (beta[0] + Approximation.digamma(gamma[0]));
+    phi[0] = (beta[0] + digammaGamma[0]);
     double normalizeFactor = phi[0];
 
     // compute the K-dimensional vector phi iteratively
     for (int i = 1; i < numberOfTopics; i++) {
-      phi[i] = (beta[i] + Approximation.digamma(gamma[i]));
+      phi[i] = (beta[i] + digammaGamma[i]);
       normalizeFactor = LogMath.add(normalizeFactor, phi[i]);
     }
 
@@ -338,15 +410,15 @@ public class DocumentMapper extends MapReduceBase implements
       phi[i] += Math.log(termCounts);
 
       // update the K-dimensional vector gamma with phi
-      updateGamma[i] = (float) LogMath.add(updateGamma[i], phi[i]);
+      updateGamma[i] = LogMath.add(updateGamma[i], phi[i]);
     }
 
     return convergePhi;
   }
 
   /**
-   * Retrieve the beta array given the beta map and term index. If {@link beta} is null or
-   * {@link termID} was not found in {@link beta}, this method will pop a message to
+   * Retrieve the beta array given the beta map and term index. If {@code beta} is null or
+   * {@code termID} was not found in {@code beta}, this method will pop a message to
    * {@link System.out} and initialize it to avoid duplicate initialization in the future.
    * 
    * @param numberOfTopics number of topics defined by the current latent Dirichlet allocation
@@ -361,10 +433,7 @@ public class DocumentMapper extends MapReduceBase implements
    */
   public static double[] retrieveBeta(int numberOfTopics, HMapIV<double[]> beta, int termID,
       int numberOfTerms) {
-    if (beta == null) {
-      System.out.println("Beta matrix was not initialized...");
-      beta = new HMapIV<double[]>();
-    }
+    Preconditions.checkArgument(beta != null, "Beta matrix was not properly initialized...");
 
     if (!beta.containsKey(termID)) {
       System.out.println("Term " + termID + " not found in the corresponding beta matrix...");
@@ -380,43 +449,4 @@ public class DocumentMapper extends MapReduceBase implements
 
     return beta.get(termID);
   }
-
-  // /**
-  // * @deprecated
-  // * @param sequenceFileReader
-  // * @param numberOfTopics
-  // * @return
-  // * @throws IOException
-  // */
-  // public static HMapIV<double[]> parseEta(SequenceFile.Reader sequenceFileReader, int
-  // numberOfTopics)
-  // throws IOException {
-  // HMapIV<double[]> beta = new HMapIV<double[]>();
-  //
-  // IntWritable intWritable = new IntWritable();
-  // ArrayListOfIntsWritable arrayListOfInts = new ArrayListOfIntsWritable();
-  //
-  // // TODO: normalize eta
-  // while (sequenceFileReader.next(intWritable, arrayListOfInts)) {
-  // Preconditions.checkArgument(intWritable.get() > 0 && intWritable.get() <= numberOfTopics,
-  // "Invalid eta prior for term " + intWritable.get() + "...");
-  //
-  // // topic is from 1 to K
-  // int topicIndex = intWritable.get() - 1;
-  //
-  // Iterator<Integer> itr = arrayListOfInts.iterator();
-  // while (itr.hasNext()) {
-  // int wordIndex = itr.next();
-  // if (!beta.containsKey(wordIndex)) {
-  // double[] vector = new double[numberOfTopics];
-  // for (int i = 0; i < vector.length; i++) {
-  // vector[i] = Settings.DEFAULT_UNINFORMED_LOG_ETA;
-  // }
-  // }
-  // beta.get(wordIndex)[topicIndex] = Settings.DEFAULT_INFORMED_LOG_ETA;
-  // }
-  // }
-  //
-  // return beta;
-  // }
 }

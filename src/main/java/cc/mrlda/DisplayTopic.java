@@ -39,9 +39,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import org.apache.log4j.Logger;
-
-import cc.mrlda.util.SortBeta;
 
 import com.google.common.base.Preconditions;
 
@@ -165,7 +162,7 @@ public class DisplayTopic extends Configured implements Tool {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new SortBeta(), args);
+    int res = ToolRunner.run(new Configuration(), new DisplayTopic(), args);
     System.exit(res);
   }
 }
