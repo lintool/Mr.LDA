@@ -15,7 +15,17 @@
         <exclude name="ant"/>
         <exclude org="org.apache.hadoop"/>
         <exclude org="com.cloudera.hadoop"/>
+        <exclude org="spy"/>
         <exclude org="fastutil"/>
+    </dependency>
+    <dependency org="com.google.guava" name="guava" rev="11.0.1" >
+        <artifact name="guava" type="jar"/>
+    </dependency>
+    <dependency org="org.apache.mahout" name="mahout-math" rev="0.6" >
+        <artifact name="mahout-math" type="jar" />
+    </dependency>
+    <dependency org="org.apache.lucene" name="lucene-core" rev="3.5.0" >
+        <artifact name="lucene-core" type="jar" />
     </dependency>
   </dependencies>
 </ivy-module>
