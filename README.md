@@ -14,10 +14,14 @@ Mr. LDA takes raw text file as input, every row in the text file represents a st
 	...
 
 Mr. LDA relies on [Lucene] (http://lucene.apache.org/core/) to tokenize all the text. Please take note that the indexing process in Mr. LDA does *not* provide mechanism to filter out words based on their frequency. However, for more information, interested users could refer to the class `ParseCorpus.java`, which consists three steps. The filter could be introduced after the second step.
+
 To tokenize, parse and index the raw text file, please run the following command
+
     hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory
     hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -mapper 10 -reducer 4
+
 To print the help information and usage hints, please run the following command
+
     hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -help
 
 Input Data Format
