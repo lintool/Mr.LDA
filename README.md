@@ -40,4 +40,4 @@ The data format for Mr. LDA package is defined in class `Document.java` of every
 	outputDocument.setDocument(content);
 ```
 
-Mr. LDA accepts sequential file
+By defalut, Mr. LDA accepts sequential file format only. The sequence file should be key-ed by a unique document ID of `IntWritable.java` type and value-d by the corresponding `Document.java` data type.
