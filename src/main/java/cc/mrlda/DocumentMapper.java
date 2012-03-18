@@ -18,14 +18,14 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
 import cc.mrlda.VariationalInference.ParameterCounter;
-import cc.mrlda.util.Gamma;
-import cc.mrlda.util.LogMath;
 
 import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.map.HMapIFW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
+import edu.umd.cloud9.math.Gamma;
+import edu.umd.cloud9.math.LogMath;
 import edu.umd.cloud9.util.map.HMapII;
 import edu.umd.cloud9.util.map.HMapIV;
 
@@ -248,7 +248,7 @@ public class DocumentMapper extends MapReduceBase implements
     if (mapperCombiner) {
       outputCollector = output;
       if (learning) {
-        if (Runtime.getRuntime().freeMemory() < Settings.MEMORY_THRESHOLD) {
+        if (Runtime.getRuntime().freeMemory() < VariationalInference.MEMORY_THRESHOLD) {
           itr = totalPhi.keySet().iterator();
           while (itr.hasNext()) {
             int termID = itr.next();
@@ -473,7 +473,7 @@ public class DocumentMapper extends MapReduceBase implements
       // topic is from 1 to K
       int topicIndex = pairOfIntFloat.getLeftElement() - 1;
       double normalizer = LogMath.add(pairOfIntFloat.getRightElement(),
-          Settings.DEFAULT_ETA + Math.log(numberOfTerms));
+          VariationalInference.DEFAULT_ETA + Math.log(numberOfTerms));
 
       Iterator<Integer> itr = hMapIFW.keySet().iterator();
       while (itr.hasNext()) {
@@ -487,7 +487,7 @@ public class DocumentMapper extends MapReduceBase implements
           // this introduces some normalization error into the system, since beta might not be a
           // valid probability distribution anymore, normalizer may exclude some of those terms
           for (int i = 0; i < vector.length; i++) {
-            vector[i] = Settings.DEFAULT_ETA;
+            vector[i] = VariationalInference.DEFAULT_ETA;
           }
           vector[topicIndex] = LogMath.add(betaValue, vector[topicIndex]);
           beta.put(termIndex, vector);

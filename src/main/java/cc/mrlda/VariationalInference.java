@@ -33,17 +33,41 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
-import cc.mrlda.util.FileMerger;
-import cc.mrlda.util.Gamma;
-
 import com.google.common.base.Preconditions;
 
+import edu.umd.cloud9.io.FileMerger;
 import edu.umd.cloud9.io.map.HMapIFW;
 import edu.umd.cloud9.io.map.HMapIIW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
+import edu.umd.cloud9.math.Gamma;
 
-public class VariationalInference extends Configured implements Tool {
+public class VariationalInference extends Configured implements Tool, Settings {
+
+  public static final double DEFAULT_ETA = Math.log(1e-8);
+
+  public static final float DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD = 0.000001f;
+  public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION = 1000;
+
+  public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_DECAY = 10;
+  public static final float DEFAULT_ALPHA_UPDATE_DECAY_FACTOR = 0.8f;
+
+  /**
+   * @deprecated
+   */
+  public static final int DEFAULT_ALPHA_UPDATE_SCALE_FACTOR = 10;
+
+  /**
+   * @deprecated
+   */
+  public static final float DEFAULT_ALPHA_UPDATE_INITIAL = 100f;
+
+  // specific settings
+  public static final String TRUNCATE_BETA_OPTION = "truncatebeta";
+  public static final String MAPPER_COMBINER_OPTION = "mappercombiner";
+  // set the minimum memory threshold, in bytes
+  public static final int MEMORY_THRESHOLD = 64 * 1024 * 1024;
+
   static final Logger sLogger = Logger.getLogger(VariationalInference.class);
 
   static enum ParameterCounter {
@@ -100,14 +124,15 @@ public class VariationalInference extends Configured implements Tool {
     options.addOption(Settings.RANDOM_START_GAMMA_OPTION, false,
         "start gamma from random point every iteration");
 
-    options.addOption(Settings.MAPPER_COMBINER_OPTION, false, "enable in-mapper-combiner");
+    options.addOption(VariationalInference.MAPPER_COMBINER_OPTION, false,
+        "enable in-mapper-combiner");
 
     options.addOption(OptionBuilder
         .withArgName(Settings.INTEGER_INDICATOR)
         .hasArg()
         .withDescription(
             "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
-        .create(Settings.TRUNCATE_BETA_OPTION));
+        .create(VariationalInference.TRUNCATE_BETA_OPTION));
 
     // options.addOption(Settings.TRUNCATE_BETA_OPTION, false,
     // "enable beta truncation of top 1000");
@@ -195,20 +220,21 @@ public class VariationalInference extends Configured implements Tool {
         }
       }
 
-      if (line.hasOption(Settings.MAPPER_COMBINER_OPTION)) {
+      if (line.hasOption(VariationalInference.MAPPER_COMBINER_OPTION)) {
         if (training) {
           mapperCombiner = true;
         } else {
-          sLogger.info("Warning: " + Settings.MAPPER_COMBINER_OPTION
+          sLogger.info("Warning: " + VariationalInference.MAPPER_COMBINER_OPTION
               + " ignored in testing mode...");
         }
       }
 
-      if (line.hasOption(Settings.TRUNCATE_BETA_OPTION)) {
+      if (line.hasOption(VariationalInference.TRUNCATE_BETA_OPTION)) {
         if (training) {
           truncateBeta = true;
         } else {
-          sLogger.info("Warning: " + Settings.TRUNCATE_BETA_OPTION + " ignored in testing mode...");
+          sLogger.info("Warning: " + VariationalInference.TRUNCATE_BETA_OPTION
+              + " ignored in testing mode...");
         }
       }
 
@@ -398,8 +424,8 @@ public class VariationalInference extends Configured implements Tool {
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", truncateBeta
           && iterationCount >= 5);
 
-      conf.setInt("mapred.task.timeout", Settings.DEFAULT_MAPRED_TASK_TIMEOUT);
-      conf.set("mapred.child.java.opts", "-Xmx2048m");
+      // conf.setInt("mapred.task.timeout", VariationalInference.DEFAULT_MAPRED_TASK_TIMEOUT);
+      // conf.set("mapred.child.java.opts", "-Xmx2048m");
 
       conf.setNumMapTasks(mapperTasks);
       conf.setNumReduceTasks(reducerTasks);
@@ -585,8 +611,8 @@ public class VariationalInference extends Configured implements Tool {
           boolean singularHessian = false;
 
           for (int i = 0; i < numberOfTopics; i++) {
-            double stepSize = Math.pow(Settings.DEFAULT_ALPHA_UPDATE_DECAY_FACTOR, decay)
-                * (alphaGradientVector[i] - c) / alphaHessianVector[i];
+            double stepSize = Math.pow(VariationalInference.DEFAULT_ALPHA_UPDATE_DECAY_FACTOR,
+                decay) * (alphaGradientVector[i] - c) / alphaHessianVector[i];
             if (alphaVector[i] <= stepSize) {
               // the current hessian matrix is singular
               singularHessian = true;
@@ -601,7 +627,7 @@ public class VariationalInference extends Configured implements Tool {
 
             // recover the old alpha vector
             alphaVectorUpdate = alphaVector;
-            if (decay > Settings.DEFAULT_ALPHA_UPDATE_MAXIMUM_DECAY) {
+            if (decay > VariationalInference.DEFAULT_ALPHA_UPDATE_MAXIMUM_DECAY) {
               break;
             }
           } else {
@@ -615,16 +641,16 @@ public class VariationalInference extends Configured implements Tool {
         keepGoing = false;
         for (int j = 0; j < numberOfTopics; j++) {
           alphaSum += alphaVectorUpdate[j];
-          if (Math.abs((alphaVectorUpdate[j] - alphaVector[j]) / alphaVector[j]) >= Settings.DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD) {
+          if (Math.abs((alphaVectorUpdate[j] - alphaVector[j]) / alphaVector[j]) >= VariationalInference.DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD) {
             keepGoing = true;
           }
         }
 
-        if (alphaUpdateIterationCount >= Settings.DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION) {
+        if (alphaUpdateIterationCount >= VariationalInference.DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION) {
           keepGoing = false;
         }
 
-        if (decay > Settings.DEFAULT_ALPHA_UPDATE_MAXIMUM_DECAY) {
+        if (decay > VariationalInference.DEFAULT_ALPHA_UPDATE_MAXIMUM_DECAY) {
           break;
         }
 
@@ -666,7 +692,7 @@ public class VariationalInference extends Configured implements Tool {
         alphaUpdateIterationCount++;
 
         if (Double.isNaN(alphaUpdate) || Double.isInfinite(alphaUpdate)) {
-          alphaInit *= Settings.DEFAULT_ALPHA_UPDATE_SCALE_FACTOR;
+          alphaInit *= VariationalInference.DEFAULT_ALPHA_UPDATE_SCALE_FACTOR;
           alphaUpdate = alphaInit;
         }
 
@@ -685,11 +711,11 @@ public class VariationalInference extends Configured implements Tool {
         alphaUpdate = Math.exp(Math.log(alphaUpdate) - alphaGradient
             / (alphaHessian * alphaUpdate + alphaGradient));
 
-        if (Math.abs(alphaGradient) < Settings.DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD) {
+        if (Math.abs(alphaGradient) < VariationalInference.DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD) {
           break;
         }
 
-        if (alphaUpdateIterationCount > Settings.DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION) {
+        if (alphaUpdateIterationCount > VariationalInference.DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION) {
           break;
         }
       }

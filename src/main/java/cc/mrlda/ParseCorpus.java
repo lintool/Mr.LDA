@@ -49,10 +49,10 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.apache.lucene.util.Version;
 
-import cc.mrlda.util.FileMerger;
 
 import com.google.common.base.Preconditions;
 
+import edu.umd.cloud9.io.FileMerger;
 import edu.umd.cloud9.io.map.HMapSIW;
 import edu.umd.cloud9.io.pair.PairOfIntString;
 import edu.umd.cloud9.io.pair.PairOfInts;

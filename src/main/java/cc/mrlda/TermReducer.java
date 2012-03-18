@@ -21,13 +21,13 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
 import cc.mrlda.VariationalInference.ParameterCounter;
-import cc.mrlda.util.LogMath;
 
 import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.map.HMapIFW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
+import edu.umd.cloud9.math.LogMath;
 import edu.umd.cloud9.util.map.HMapIV;
 
 public class TermReducer extends MapReduceBase implements

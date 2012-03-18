@@ -9,8 +9,8 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 
-import cc.mrlda.util.LogMath;
 import edu.umd.cloud9.io.pair.PairOfInts;
+import edu.umd.cloud9.math.LogMath;
 
 public class TermCombiner extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, PairOfInts, DoubleWritable> {
