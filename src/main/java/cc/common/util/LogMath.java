@@ -1,4 +1,4 @@
-package cc.mrlda.util;
+package cc.common.util;
 
 public class LogMath {
   /**

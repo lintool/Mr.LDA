@@ -1,4 +1,4 @@
-package cc.mrlda.util;
+package cc.common.util;
 
 public class Settings {
   // public static final String DEBUG = "debug";
@@ -25,4 +25,7 @@ public class Settings {
   public static final char DASH = '-';
   public static final char DOT = '.';
   public static final char STAR = '*';
+
+  // public static void exportSettings(SequenceFile.Writer sequenceFileWriter) {
+  // }
 }

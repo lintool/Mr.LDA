@@ -1,6 +1,7 @@
 package cc.mrlda;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Iterator;
 
@@ -18,12 +19,14 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
+import cc.common.util.Gamma;
+import cc.common.util.LogMath;
 import cc.mrlda.VariationalInference.ParameterCounter;
-import cc.mrlda.util.Gamma;
-import cc.mrlda.util.LogMath;
 
 import com.google.common.base.Preconditions;
 
+import edu.umd.cloud9.io.map.HMapIFW;
+import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.util.map.HMapII;
 import edu.umd.cloud9.util.map.HMapIV;
@@ -31,7 +34,7 @@ import edu.umd.cloud9.util.map.HMapIV;
 public class DocumentMapper extends MapReduceBase implements
     Mapper<IntWritable, Document, PairOfInts, DoubleWritable> {
   boolean mapperCombiner = false;
-  Hashtable<Integer, double[]> totalPhi = new Hashtable<Integer, double[]>();
+  Hashtable<Integer, double[]> totalPhi = null;
   double[] totalAlphaSufficientStatistics;
   OutputCollector<PairOfInts, DoubleWritable> outputCollector;
 
@@ -41,18 +44,15 @@ public class DocumentMapper extends MapReduceBase implements
   private static HMapIV<double[]> beta = null;
   private static double[] alpha = null;
 
-  private static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
-  private static int numberOfTerms = 0;
+  private static int numberOfTopics = 0;
+  private static int numberOfTerms = Integer.MAX_VALUE;
 
-  // private static double localConvergeForGamma = Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD;
   private static int maximumGammaIteration = Settings.MAXIMUM_GAMMA_ITERATION;
 
   private static boolean learning = Settings.LEARNING_MODE;
   private static boolean randomStartGamma = Settings.RANDOM_START_GAMMA;
 
-  // public static boolean informedPrior = false;
   private static double likelihoodAlpha = 0;
-  private static double alphaSum = 0;
 
   private PairOfInts outputKey = new PairOfInts();
   private DoubleWritable outputValue = new DoubleWritable();
@@ -61,10 +61,11 @@ public class DocumentMapper extends MapReduceBase implements
   private static OutputCollector<IntWritable, Document> outputDocument;
 
   private double[] tempBeta = null;
+
   private double[] tempGamma = null;
-  // private double[] gammaPointer = null;
   private double[] updateGamma = null;
-  private Hashtable<Integer, double[]> phiTable = null;
+
+  private HashMap<Integer, double[]> phiTable = null;
 
   private Iterator<Integer> itr = null;
 
@@ -72,24 +73,27 @@ public class DocumentMapper extends MapReduceBase implements
     configurationTime = System.currentTimeMillis();
 
     numberOfTerms = conf.getInt(Settings.PROPERTY_PREFIX + "corpus.terms", Integer.MAX_VALUE);
-    numberOfTopics = conf.getInt(Settings.PROPERTY_PREFIX + "model.topics",
-        Settings.DEFAULT_NUMBER_OF_TOPICS);
+    numberOfTopics = conf.getInt(Settings.PROPERTY_PREFIX + "model.topics", 0);
+    // Settings.DEFAULT_NUMBER_OF_TOPICS);
+    maximumGammaIteration = conf.getInt(Settings.PROPERTY_PREFIX
+        + "model.mapper.converge.iteration", Settings.MAXIMUM_GAMMA_ITERATION);
+
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
+    randomStartGamma = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.random.start",
+        Settings.RANDOM_START_GAMMA);
 
     mapperCombiner = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.mapper.combiner", false);
+    if (mapperCombiner) {
+      totalPhi = new Hashtable<Integer, double[]>();
+      totalAlphaSufficientStatistics = new double[numberOfTopics];
+    }
 
     updateGamma = new double[numberOfTopics];
-    phiTable = new Hashtable<Integer, double[]>();
+    phiTable = new HashMap<Integer, double[]>();
 
     multipleOutputs = new MultipleOutputs(conf);
 
-    // localConvergeForGamma = conf.getFloat(Settings.PROPERTY_PREFIX +
-    // "model.mapper.converge.gamma",
-    // Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD);
-    // localConvergeForCriteria = conf.getFloat(Settings.PROPERTY_PREFIX
-    // + "model.mapper.converge.likelihood", Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_CRITERIA);
-    maximumGammaIteration = conf.getInt(Settings.PROPERTY_PREFIX
-        + "model.mapper.converge.iteration", Settings.MAXIMUM_GAMMA_ITERATION);
+    double alphaSum = 0;
 
     SequenceFile.Reader sequenceFileReader = null;
     try {
@@ -103,8 +107,7 @@ public class DocumentMapper extends MapReduceBase implements
             if (path.getName().startsWith(Settings.BETA)) {
               // TODO: check whether seeded beta is valid, i.e., a true probability distribution
               Preconditions.checkArgument(beta == null, "Beta matrix was initialized already...");
-              beta = VariationalInference.importBeta(sequenceFileReader, numberOfTopics,
-                  numberOfTerms);
+              beta = importBeta(sequenceFileReader, numberOfTopics, numberOfTerms);
             } else if (path.getName().startsWith(Settings.ALPHA)) {
               Preconditions.checkArgument(alpha == null, "Alpha vector was initialized already...");
 
@@ -150,17 +153,15 @@ public class DocumentMapper extends MapReduceBase implements
       likelihoodAlpha = Gamma.lngamma(alphaSum) - alphaLnGammaSum;
     }
 
-    totalAlphaSufficientStatistics = new double[numberOfTopics];
-
-    // System.out.println("======================================================================");
-    // System.out.println("Available processors (cores): "
-    // + Runtime.getRuntime().availableProcessors());
-    // long maxMemory = Runtime.getRuntime().maxMemory();
-    // System.out.println("Maximum memory (bytes): "
-    // + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
-    // System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
-    // System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
-    // System.out.println("======================================================================");
+    System.out.println("======================================================================");
+    System.out.println("Available processors (cores): "
+        + Runtime.getRuntime().availableProcessors());
+    long maxMemory = Runtime.getRuntime().maxMemory();
+    System.out.println("Maximum memory (bytes): "
+        + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
+    System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
+    System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
+    System.out.println("======================================================================");
 
     configurationTime = System.currentTimeMillis() - configurationTime;
   }
@@ -204,9 +205,7 @@ public class DocumentMapper extends MapReduceBase implements
       itr = content.keySet().iterator();
       while (itr.hasNext()) {
         int termID = itr.next();
-        int termCounts = content.get(termID);
         // acquire the corresponding beta vector for this term
-        tempBeta = retrieveBeta(numberOfTopics, beta, termID, numberOfTerms);
         if (phiTable.containsKey(termID)) {
           // reuse existing object
           phi = phiTable.get(termID);
@@ -214,6 +213,9 @@ public class DocumentMapper extends MapReduceBase implements
           phi = new double[numberOfTopics];
           phiTable.put(termID, phi);
         }
+
+        int termCounts = content.get(termID);
+        tempBeta = retrieveBeta(numberOfTopics, beta, termID, numberOfTerms);
 
         likelihoodPhi += updatePhi(numberOfTopics, termCounts, tempBeta, tempGamma, phi,
             updateGamma);
@@ -448,5 +450,55 @@ public class DocumentMapper extends MapReduceBase implements
     }
 
     return beta.get(termID);
+  }
+
+  /**
+   * 
+   * @param sequenceFileReader
+   * @param numberOfTopics
+   * @param numberOfTerms
+   * @return
+   * @throws IOException
+   */
+  public static HMapIV<double[]> importBeta(SequenceFile.Reader sequenceFileReader,
+      int numberOfTopics, int numberOfTerms) throws IOException {
+    HMapIV<double[]> beta = new HMapIV<double[]>();
+
+    PairOfIntFloat pairOfIntFloat = new PairOfIntFloat();
+    HMapIFW hMapIFW = new HMapIFW();
+
+    while (sequenceFileReader.next(pairOfIntFloat, hMapIFW)) {
+      Preconditions.checkArgument(
+          pairOfIntFloat.getLeftElement() > 0 && pairOfIntFloat.getLeftElement() <= numberOfTopics,
+          "Invalid beta vector for term " + pairOfIntFloat.getLeftElement() + "...");
+
+      // topic is from 1 to K
+      int topicIndex = pairOfIntFloat.getLeftElement() - 1;
+      double normalizer = LogMath.add(pairOfIntFloat.getRightElement(),
+          Settings.DEFAULT_ETA + Math.log(numberOfTerms));
+
+      Iterator<Integer> itr = hMapIFW.keySet().iterator();
+      while (itr.hasNext()) {
+        int termIndex = itr.next();
+        double betaValue = hMapIFW.get(termIndex);
+
+        betaValue -= normalizer;
+
+        if (!beta.containsKey(termIndex)) {
+          double[] vector = new double[numberOfTopics];
+          // this introduces some normalization error into the system, since beta might not be a
+          // valid probability distribution anymore, normalizer may exclude some of those terms
+          for (int i = 0; i < vector.length; i++) {
+            vector[i] = Settings.DEFAULT_ETA;
+          }
+          vector[topicIndex] = LogMath.add(betaValue, vector[topicIndex]);
+          beta.put(termIndex, vector);
+        } else {
+          beta.get(termIndex)[topicIndex] = LogMath.add(betaValue, beta.get(termIndex)[topicIndex]);
+        }
+      }
+    }
+
+    return beta;
   }
 }

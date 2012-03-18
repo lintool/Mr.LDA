@@ -4,9 +4,6 @@
 	<classpathentry kind="src" path="src/test/java"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="lib/bliki-core-3.0.16.jar"/>
-	<classpathentry kind="lib" path="lib/cloud9-1.2.10-javadoc.jar"/>
-	<classpathentry kind="lib" path="lib/cloud9-1.2.10-sources.jar"/>
-	<classpathentry kind="lib" path="lib/cloud9-1.2.10.jar"/>
 	<classpathentry kind="lib" path="lib/collections-generic-4.01.jar"/>
 	<classpathentry kind="lib" path="lib/colt-1.2.0.jar"/>
 	<classpathentry kind="lib" path="lib/commons-cli-1.2.jar"/>
@@ -45,5 +42,6 @@
 	<classpathentry kind="lib" path="lib/servlet-api-2.5.jar"/>
 	<classpathentry kind="lib" path="lib/xmlenc-0.52.jar"/>
 	<classpathentry kind="lib" path="lib/lucene-core-3.5.0.jar"/>
+	<classpathentry kind="lib" path="lib/cloud9-1.2.10.jar"/>
 	<classpathentry kind="output" path="build"/>
 </classpath>

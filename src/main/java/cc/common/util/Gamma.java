@@ -1,4 +1,4 @@
-package cc.mrlda.util;
+package cc.common.util;
 
 import com.google.common.base.Preconditions;
 

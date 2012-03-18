@@ -9,7 +9,7 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 
-import cc.mrlda.util.LogMath;
+import cc.common.util.LogMath;
 import edu.umd.cloud9.io.pair.PairOfInts;
 
 public class TermCombiner extends MapReduceBase implements
