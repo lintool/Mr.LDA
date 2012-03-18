@@ -1,6 +1,6 @@
 package cc.mrlda;
 
-public class Settings extends cc.common.util.Settings {
+public class Settings extends cc.mrlda.util.Settings {
   static final String PROPERTY_PREFIX = Settings.class.getPackage() + "" + DOT;
 
   public static final int DEFAULT_MAPRED_TASK_TIMEOUT = 30 * 60 * 1000;

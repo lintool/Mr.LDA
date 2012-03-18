@@ -1,8 +1,6 @@
 package cc.mrlda;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.Iterator;
 
 import org.apache.hadoop.filecache.DistributedCache;
@@ -19,9 +17,9 @@ import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
-import cc.common.util.Gamma;
-import cc.common.util.LogMath;
 import cc.mrlda.VariationalInference.ParameterCounter;
+import cc.mrlda.util.Gamma;
+import cc.mrlda.util.LogMath;
 
 import com.google.common.base.Preconditions;
 
@@ -34,7 +32,7 @@ import edu.umd.cloud9.util.map.HMapIV;
 public class DocumentMapper extends MapReduceBase implements
     Mapper<IntWritable, Document, PairOfInts, DoubleWritable> {
   boolean mapperCombiner = false;
-  Hashtable<Integer, double[]> totalPhi = null;
+  HMapIV<double[]> totalPhi = null;
   double[] totalAlphaSufficientStatistics;
   OutputCollector<PairOfInts, DoubleWritable> outputCollector;
 
@@ -65,7 +63,7 @@ public class DocumentMapper extends MapReduceBase implements
   private double[] tempGamma = null;
   private double[] updateGamma = null;
 
-  private HashMap<Integer, double[]> phiTable = null;
+  private HMapIV<double[]> phiTable = null;
 
   private Iterator<Integer> itr = null;
 
@@ -84,12 +82,12 @@ public class DocumentMapper extends MapReduceBase implements
 
     mapperCombiner = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.mapper.combiner", false);
     if (mapperCombiner) {
-      totalPhi = new Hashtable<Integer, double[]>();
+      totalPhi = new HMapIV<double[]>();
       totalAlphaSufficientStatistics = new double[numberOfTopics];
     }
 
     updateGamma = new double[numberOfTopics];
-    phiTable = new HashMap<Integer, double[]>();
+    phiTable = new HMapIV<double[]>();
 
     multipleOutputs = new MultipleOutputs(conf);
 

@@ -49,7 +49,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.apache.lucene.util.Version;
 
-import cc.common.util.FileMerger;
+import cc.mrlda.util.FileMerger;
 
 import com.google.common.base.Preconditions;
 

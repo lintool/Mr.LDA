@@ -20,8 +20,8 @@ import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
-import cc.common.util.LogMath;
 import cc.mrlda.VariationalInference.ParameterCounter;
+import cc.mrlda.util.LogMath;
 
 import com.google.common.base.Preconditions;
 

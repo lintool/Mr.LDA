@@ -33,8 +33,8 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
-import cc.common.util.FileMerger;
-import cc.common.util.Gamma;
+import cc.mrlda.util.FileMerger;
+import cc.mrlda.util.Gamma;
 
 import com.google.common.base.Preconditions;
 
