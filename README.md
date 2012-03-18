@@ -30,14 +30,41 @@ Input Data Format
 The data format for Mr. LDA package is defined in class `Document.java` of every package. It consists an `HMapII` object, storing all word:count pairs in a document using an integer:integer hash map. **Take note that the word index starts from 1, whereas index 0 is reserved for system message.** Interesting user could refer following piece of code to convert an *indexed* document `String` to `Document`:
 
 ```java
-	String inputDocument = "1 2 1 8 1 9 8 4 1 1 2 1 9 8 6";
-	Document outputDocument = new Document();
-	HMapII content = new HMapII();
-	StringTokenizer stk = new StringTokenizer(inputDocument);
-	while (stk.hasNext()) {
-	      content.increment(Integer.parseInt(stk.hasNext), 1);
-	}
-	outputDocument.setDocument(content);
+String inputDocument = "1 2 1 8 1 9 8 4 1 1 2 1 9 8 6";
+Document outputDocument = new Document();
+HMapII content = new HMapII();
+StringTokenizer stk = new StringTokenizer(inputDocument);
+while (stk.hasNext()) {
+      content.increment(Integer.parseInt(stk.hasNext), 1);
+}
+outputDocument.setDocument(content);
 ```
 
 By defalut, Mr. LDA accepts sequential file format only. The sequence file should be key-ed by a unique document ID of `IntWritable.java` type and value-d by the corresponding `Document.java` data type.
+
+Latent Dirichlet Allocation
+----------
+
+The primary entry point of Mr. LDA package is via `VariationalInference` class. You may start training, resume training or launch testing on input data.
+
+To print the help information and usage hints, please run the following command
+
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -help
+
+To train LDA model on a dataset, please run following command:
+
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer -20
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer -20
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer -20 -localmerge
+
+The first four parameters are required options, and the following options are free parameter with their respective default values. Take note that `-term` option specifies the total number of unique tokens in the whole corpus. If this value is not available from context at run time, it is advised to set this option to the approximated upper bound of the total number of unique tokens in the entire corpus.
+
+To resume training LDA model on a dataset, please run following command:
+
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer -20
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer -20
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer -20 -localmerge
