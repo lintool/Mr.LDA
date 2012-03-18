@@ -148,10 +148,6 @@ public class VariationalInference extends Configured implements Tool {
       if (line.hasOption(Settings.INPUT_OPTION)) {
         inputPath = line.getOptionValue(Settings.INPUT_OPTION);
       }
-      // else {
-      // throw new ParseException("Parsing failed due to " + Settings.INPUT_OPTION
-      // + " not initialized...");
-      // }
 
       if (line.hasOption(Settings.OUTPUT_OPTION)) {
         outputPath = line.getOptionValue(Settings.OUTPUT_OPTION);
@@ -160,10 +156,6 @@ public class VariationalInference extends Configured implements Tool {
           outputPath += Path.SEPARATOR;
         }
       }
-      // else {
-      // throw new ParseException("Parsing failed due to " + Settings.OUTPUT_OPTION
-      // + " not initialized...");
-      // }
 
       if (line.hasOption(Settings.ITERATION_OPTION)) {
         if (training) {
@@ -230,10 +222,6 @@ public class VariationalInference extends Configured implements Tool {
         Preconditions.checkArgument(numberOfTerms > 0, "Illegal settings for "
             + Settings.TERM_OPTION + " option: " + numberOfTerms);
       }
-      // else {
-      // throw new ParseException("Parsing failed due to " + Settings.TERM_OPTION
-      // + " not initialized...");
-      // }
 
       if (line.hasOption(Settings.RANDOM_START_GAMMA_OPTION)) {
         if (training) {
@@ -277,28 +265,16 @@ public class VariationalInference extends Configured implements Tool {
       System.exit(0);
     }
 
-    // run(inputPath, outputPath, numberOfTopics, numberOfTerms, numberOfIterations, mapperTasks,
-    // reducerTasks, localMerge, training, randomStartGamma, resume, informedPrior, modelPath,
-    // snapshotIndex, mapperCombiner, truncateBeta);
-    //
-    // return 0;
-    // }
-    //
-    // public void train(String inputPath, String outputPath, int numberOfTopics, int numberOfTerms,
-    // int numberOfIterations, int mapperTasks, int reducerTasks, boolean localMerge,
-    // boolean training, boolean randomStartGamma, boolean resume, Path informedPrior,
-    // String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta)
-    // throws Exception {
-    // run(inputPath, outputPath, numberOfTopics, numberOfTerms, numberOfIterations, mapperTasks,
-    // reducerTasks, localMerge, true, randomStartGamma, false, null, null, 0, mapperCombiner,
-    // truncateBeta);
-    // }
-    //
-    // private void run(String inputPath, String outputPath, int numberOfTopics, int numberOfTerms,
-    // int numberOfIterations, int mapperTasks, int reducerTasks, boolean localMerge,
-    // boolean training, boolean randomStartGamma, boolean resume, Path informedPrior,
-    // String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta)
-    // throws Exception {
+    return run(inputPath, outputPath, numberOfTopics, numberOfTerms, numberOfIterations,
+        mapperTasks, reducerTasks, localMerge, training, randomStartGamma, resume, informedPrior,
+        modelPath, snapshotIndex, mapperCombiner, truncateBeta);
+  }
+
+  private int run(String inputPath, String outputPath, int numberOfTopics, int numberOfTerms,
+      int numberOfIterations, int mapperTasks, int reducerTasks, boolean localMerge,
+      boolean training, boolean randomStartGamma, boolean resume, Path informedPrior,
+      String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta)
+      throws Exception {
 
     sLogger.info("Tool: " + VariationalInference.class.getSimpleName());
 
