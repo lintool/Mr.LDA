@@ -27,4 +27,17 @@ To print the help information and usage hints, please run the following command
 Input Data Format
 ----------
 
-The data format for Mr. LDA package is defined in class `Document.java` of every package. It consists an `HMapII` object, storing all word:count pairs in a document using an integer:integer hash map. **Take note that the word index starts from 1, whereas index 0 is reserved for system message.**
+The data format for Mr. LDA package is defined in class `Document.java` of every package. It consists an `HMapII` object, storing all word:count pairs in a document using an integer:integer hash map. **Take note that the word index starts from 1, whereas index 0 is reserved for system message.** Interesting user could refer following piece of code to convert an *indexed* document `String` to `Document`:
+
+```java
+	String inputDocument = "1 2 1 8 1 9 8 4 1 1 2 1 9 8 6";
+	Document outputDocument = new Document();
+	HMapII content = new HMapII();
+	StringTokenizer stk = new StringTokenizer(inputDocument);
+	while (stk.hasNext()) {
+	      content.increment(Integer.parseInt(stk.hasNext), 1);
+	}
+	outputDocument.setDocument(content);
+```
+
+Mr. LDA accepts sequential file
