@@ -21,27 +21,25 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 
 import cc.mrlda.VariationalInference.ParameterCounter;
-import cc.mrlda.util.LogMath;
 
 import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.map.HMapIFW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
+import edu.umd.cloud9.math.LogMath;
 import edu.umd.cloud9.util.map.HMapIV;
 
 public class TermReducer extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, IntWritable, DoubleWritable> {
   boolean truncateBeta = false;
   // double truncationThreshold = Math.log(0.001);
-  int truncationSize = 1000;
+  int truncationSize = 10000;
   TreeMap<Double, Integer> treeMap = new TreeMap<Double, Integer>();
   Iterator<Entry<Double, Integer>> itr = null;
 
   private static HMapIV<Set<Integer>> lambdaMap = null;
 
-  // private static int numberOfTerms;
-  // private static int numberOfTopics = Settings.DEFAULT_NUMBER_OF_TOPICS;
   private static boolean learning = Settings.LEARNING_MODE;
 
   private int topicIndex = 0;
@@ -59,9 +57,6 @@ public class TermReducer extends MapReduceBase implements
   public void configure(JobConf conf) {
     multipleOutputs = new MultipleOutputs(conf);
 
-    // numberOfTerms = conf.getInt(Settings.PROPERTY_PREFIX + "corpus.terms", Integer.MAX_VALUE);
-    // numberOfTopics = conf.getInt(Settings.PROPERTY_PREFIX + "model.topics",
-    // Settings.DEFAULT_NUMBER_OF_TOPICS);
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
 
     truncateBeta = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", false);
@@ -127,8 +122,8 @@ public class TermReducer extends MapReduceBase implements
         sum += values.next().get();
       }
 
-      Preconditions.checkArgument(key.getRightElement() >= 0,
-          "Unexpected sequence order for Convergence Criteria: " + key.toString());
+      Preconditions.checkArgument(key.getRightElement() > 0,
+          "Unexpected sequence order for alpha sufficient statistics: " + key.toString());
 
       intWritable.set(key.getRightElement());
       doubleWritable.set(sum);
