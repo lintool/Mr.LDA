@@ -49,10 +49,10 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.apache.lucene.util.Version;
 
-import cc.mrlda.util.FileMerger;
 
 import com.google.common.base.Preconditions;
 
+import edu.umd.cloud9.io.FileMerger;
 import edu.umd.cloud9.io.map.HMapSIW;
 import edu.umd.cloud9.io.pair.PairOfIntString;
 import edu.umd.cloud9.io.pair.PairOfInts;
@@ -61,7 +61,7 @@ import edu.umd.cloud9.util.map.HMapII;
 public class ParseCorpus extends Configured implements Tool {
   static final Logger sLogger = Logger.getLogger(ParseCorpus.class);
 
-  static enum MyCounter {
+  private static enum MyCounter {
     TOTAL_DOCS, TOTAL_TERMS,
   }
 
@@ -76,9 +76,9 @@ public class ParseCorpus extends Configured implements Tool {
 
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("input file(s) or directory").create(Settings.INPUT_OPTION));
+        .withDescription("input file(s) or directory").isRequired().create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("output directory").create(Settings.OUTPUT_OPTION));
+        .withDescription("output directory").isRequired().create(Settings.OUTPUT_OPTION));
     options
         .addOption(OptionBuilder
             .withArgName(Settings.INTEGER_INDICATOR)
