@@ -15,9 +15,9 @@ Mr. LDA takes raw text file as input, every row in the text file represents a st
 
 Mr. LDA relies on [Lucene] (http://lucene.apache.org/core/) to tokenize all the text. Please take note that the indexing process in Mr. LDA does *not* provide mechanism to filter out words based on their frequency. However, for more information, interested users could refer to the class `ParseCorpus.java`, which consists three steps. The filter could be introduced after the second step.
 
-To tokenize, parse and index the raw text file, please run the following command
+To tokenize, parse and index the raw text file, please run either the following command
 
-    hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory
+    hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -input /hadoop/raw/text/input/directory -output /hadoop/index/document/output/directory
     hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -input /hadoop/raw/text/input/directory -output /hadoop/index/document/output/directory -mapper 10 -reducer 4
 
 To print the help information and usage hints, please run the following command
@@ -27,6 +27,7 @@ To print the help information and usage hints, please run the following command
 By the end of execution, you will end up with three files/dirtories in the specified output, for example,
 
    hadoop fs -ls /hadoop/index/document/output/directory/
+
    Found 3 items
    drwxr-xr-x   - user supergroup          0 2012-01-12 12:18 /hadoop/index/document/output/directory/document
    -rw-r--r--   3 user supergroup        282 2012-01-12 12:18 /hadoop/index/document/output/directory/term
@@ -36,6 +37,8 @@ File `/hadoop/index/document/output/directory/term` stores the mapping between a
 
      hadoop jar Mr.LDA.jar edu.umd.cloud9.io.ReadSequenceFile /hadoop/index/document/output/directory/term
      hadoop jar Mr.LDA.jar edu.umd.cloud9.io.ReadSequenceFile /hadoop/index/document/output/directory/term 20
+
+and option '20' specifies the first 20 records to be displayed.
 
 Input Data Format
 ----------
