@@ -28,7 +28,7 @@ By the end of execution, you will end up with three files/dirtories in the speci
 
    hadoop fs -ls /hadoop/index/document/output/directory/
 
-'''
+'''java
 Found 3 items
 drwxr-xr-x   - user supergroup          0 2012-01-12 12:18 /hadoop/index/document/output/directory/document
 -rw-r--r--   3 user supergroup        282 2012-01-12 12:18 /hadoop/index/document/output/directory/term
