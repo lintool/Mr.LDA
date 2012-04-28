@@ -4,7 +4,7 @@ Mr. LDA is a Latent Dirichlet Allocation topic modeling package based on Variati
 
 Please download the latest version from our [GitHub repository](https://github.com/lintool/Mr.LDA).
 
-Please send any bugs of problems to [Ke Zhai] (kzhai@umd.edu).
+Please send any bugs of problems to Ke Zhai (kzhai@umd.edu).
 
 Tokenizing and Indexing
 ----------
