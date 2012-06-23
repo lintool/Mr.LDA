@@ -92,12 +92,45 @@ The first four parameters are required options, and the following options are fr
 
 To resume training LDA model on a dataset, please run following command, it resumes Mr. LDA from iteration 5 to iteration 40:
 
-    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/raw/text/input/directory -output /hadoop/raw/text/output/directory -term 60000 -topic 100 -iteration 40 -modelindex 5
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -modelindex 5
 
 Take note that, to resume Mr. LDA learning, it requires the corresponding beta (distribution over tokens for a given topic), alpha (hyper-parameter for topic) and gamma (distribution over topics for a give document) to be presented.
 
 To launch testing LDA model on a held-out dataset, please run the following command:
 
-    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/test-data -output /hadoop/mrlda/test-output -term 60000 -topic 100 -iteration 100 -modelindex 40 -test /hadoop/mrlda/output/directory
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/test-data -output /hadoop/mrlda/output/test-output -term 60000 -topic 100 -iteration 100 -modelindex 40 -test /hadoop/mrlda/output/directory
 
-This command launches the testing of model after 40 iterations from the training output `/hadoop/mrlda/output/directory` and run 100 iteration on the testing data `/hadoop/index/document/test-data`. Take note that `-test` option specifies the training output, and `-modelindex` specifies the model index from the training output.
+This command launches the testing of model after 40 iterations from the training output `/hadoop/mrlda/output/directory` and run 100 iteration on the testing data `/hadoop/index/document/output/directory/test-data`. Take note that `-test` option specifies the training output, and `-modelindex` specifies the model index from the training output.
+
+Informed Prior
+----------
+
+Informed prior guild the latent Dirichlet allocation program to some topics which are particularly of interest. A typical informed prior word list looks like following, whereas *every* row is a set of words that belong (or "should" belong) to the same topic.
+    
+    foreign eastern western domestic immigration foreigners ethnic immigrants cultural culture easterns westerners westernstyle immigrant
+    believe church hope believed determine christian religious christmas believes god determined fatal islamic faith christ jesus fate christopher christians churches belief religion gods christies fatalities saint islam beliefs faithful fatally determining bible lord ritual soul destined determination mosque churchs blessing destiny fatality christine saints godfather
+    fighting fight battle challenge argued arguments fought challenger fighters threw dominated riot argument challenged fighter knife argue battles confrontation stones cruel challenges challenging battling disagreed disagree fights disagreement knives challengers domination battled dominate
+    military war chief service army corp troops soldiers officer officers corps combat marine wars veterans soldier troop veteran marines
+    private person identified personal concern concerned concerns basis natural affected affect identify nature identification tend character concerning identity personally affecting core characters naturalization characterized personality tendency selfdefense identities affects characteristics selfdetermination naturally foundations identical
+    ...
+
+Let us refer the above content as an informed prior file in HDFS --- `/hadoop/raw/text/input/informed-prior.txt`. To generate the Mr. LDA acceptalbe informed prior with the correct mapping of the word indexing, please run the following command
+
+    hadoop jar Mr.LDA.jar cc.mrlda.InformedPrior -input /hadoop/raw/text/input/informed-prior.txt -output /hadoop/index/document/output/directory/prior -index /hadoop/index/document/output/directory/term
+    
+To print the help information and usage hits, please run the following command
+
+    hadoop jar Mr.LDA.jar cc.mrlda.InformedPrior -help
+    
+By the end of the execution, you should get an informed prior file with correct index mapping, ready for training topics using Mr. LDA, for example,
+
+    hadoop fs -ls /hadoop/index/document/output/directory/
+    Found 4 items
+    drwxr-xr-x   - user supergroup          0 2012-01-12 12:18 /hadoop/index/document/output/directory/document
+    -rw-r--r--   3 user supergroup         57 2012-01-12 12:25 /hadoop/index/document/output/directory/prior
+    -rw-r--r--   3 user supergroup        282 2012-01-12 12:18 /hadoop/index/document/output/directory/term
+    -rw-r--r--   3 user supergroup        189 2012-01-12 12:18 /hadoop/index/document/output/directory/title
+
+To train LDA model on a dataset with informed prior, please run the following command
+    
+    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -informedprior /hadoop/index/document/output/directory/prior -output /hadoop/mrlda/output/directory -term 60000 -topic 100
