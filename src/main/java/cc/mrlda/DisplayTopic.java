@@ -42,7 +42,7 @@ import org.apache.hadoop.util.ToolRunner;
 
 import com.google.common.base.Preconditions;
 
-import edu.umd.cloud9.io.map.HMapIFW;
+import edu.umd.cloud9.io.map.HMapIDW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 
 public class DisplayTopic extends Configured implements Tool {
@@ -122,8 +122,9 @@ public class DisplayTopic extends Configured implements Tool {
       }
 
       PairOfIntFloat pairOfIntFloat = new PairOfIntFloat();
-      HMapIFW hmap = new HMapIFW();
-      TreeMap<Float, Integer> treeMap = new TreeMap<Float, Integer>();
+      // HMapIFW hmap = new HMapIFW();
+      HMapIDW hmap = new HMapIDW();
+      TreeMap<Double, Integer> treeMap = new TreeMap<Double, Integer>();
       sequenceFileReader = new SequenceFile.Reader(fs, betaPath, conf);
       while (sequenceFileReader.next(pairOfIntFloat, hmap)) {
         treeMap.clear();
@@ -143,8 +144,8 @@ public class DisplayTopic extends Configured implements Tool {
           }
         }
 
-        Iterator<Float> itr2 = treeMap.keySet().iterator();
-        float temp2 = 0;
+        Iterator<Double> itr2 = treeMap.keySet().iterator();
+        double temp2 = 0;
         while (itr2.hasNext()) {
           temp2 = itr2.next();
           if (termIndex.containsKey(treeMap.get(temp2))) {
