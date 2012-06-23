@@ -6,6 +6,16 @@ Please download the latest version from our [GitHub repository](https://github.c
 
 Please send any bugs of problems to Ke Zhai (kzhai@umd.edu).
 
+Install and Build
+----------
+Download the source code package (unzip if necessary) to directory `/home/directory/` in your own local file system (not HDFS). 
+To download all the dependency packages, please run the following command
+
+    cd /home/directory/Mr.LDA/
+    ant
+
+Jar all the .class files and dependency packages to `Mr.LDA.jar`.
+
 Tokenizing and Indexing
 ----------
 
@@ -47,7 +57,7 @@ Input Data Format
 The data format for Mr. LDA package is defined in class `Document.java` of every package. It consists an `HMapII.java` object, storing all word:count pairs in a document using an integer:integer hash map. **Take note that the word index starts from 1, whereas index 0 is reserved for system message.** Interesting user could refer following piece of code to convert an *indexed* document `String.java` to `Document.java`:
 
 ```java
-String inputDocument = "1 2 1 8 1 9 8 4 1 1 2 1 9 8 6";
+String inputDocument = "Mr. LDA is a Latent Dirichlet Allocation topic modeling package based on Variational Bayesian learning approach using MapReduce and Hadoop";
 Document outputDocument = new Document();
 HMapII content = new HMapII();
 StringTokenizer stk = new StringTokenizer(inputDocument);
