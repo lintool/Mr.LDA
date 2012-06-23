@@ -6,6 +6,14 @@ Please download the latest version from our [GitHub repository](https://github.c
 
 Please send any bugs of problems to Ke Zhai (kzhai@umd.edu).
 
+Install and Build
+----------
+Download the source code package (unzip if necessary) to directory /home/directory/ in your own local file system (not HDFS). 
+To download all the dependency packages, please run the following command
+
+    cd /home/directory/Mr.LDA/
+    ant
+
 Tokenizing and Indexing
 ----------
 
