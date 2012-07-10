@@ -82,7 +82,9 @@
   </target>
 
   <target name="jar" depends="compile" description="generate the distribution">
-    <jar jarfile="${dist.dir}/mrlda-${version}.jar" basedir="${build.dir}" />
+      <jar jarfile="${dist.dir}/mrlda-${version}.jar" basedir="${build.dir}">
+          <zipgroupfileset dir="${lib.dir}" includes="*.jar"/>
+      </jar>
   </target>
 
   <target name="dist" depends="jar,javadoc" description="generate the distribution">
