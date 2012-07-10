@@ -14,8 +14,14 @@ To download all the dependency packages, please run the following command
     cd /home/directory/Mr.LDA/
     ant
 
-This should create  `dist/mr.lda-{version}.jar` with all of the proper libraries.
-You may also choose to manually Jar all the .class files and dependency packages to `Mr.LDA.jar`.
+Jar all the .class files anddependency packages to `Mr.LDA.jar`. This can
+either be accomplished manually or by running the following command
+
+    cd /home/directory/Mr.LDA/
+    ant export
+
+The above command should create `bin/Mr.LDA-{version}.jar` with all of the
+proper libraries.
 
 Tokenizing and Indexing
 ----------
