@@ -50,7 +50,8 @@ public class VariationalInference extends Configured implements Tool, Settings {
   public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION = 1000;
 
   public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_DECAY = 10;
-  public static final float DEFAULT_ALPHA_UPDATE_DECAY_FACTOR = 0.8f;
+    //  public static final float DEFAULT_ALPHA_UPDATE_DECAY_FACTOR = 0.8f;
+  public static final float DEFAULT_ALPHA_UPDATE_DECAY_FACTOR = 0.5f;
 
   /**
    * @deprecated
@@ -110,6 +111,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
             "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
         .create(Settings.REDUCER_OPTION));
 
+    options.addOption(Settings.QUEUE_OPTION, true, "queue name");
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArgs()
         .withDescription("run program in inference mode, i.e. test held-out likelihood")
         .create(Settings.INFERENCE_MODE_OPTION));
@@ -150,6 +152,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
     int numberOfIterations = Settings.DEFAULT_GLOBAL_MAXIMUM_ITERATION;
     int mapperTasks = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int reducerTasks = Settings.DEFAULT_NUMBER_OF_REDUCERS;
+    String queueName = Settings.DEFAULT_QUEUE_NAME;
 
     int numberOfTerms = 0;
 
@@ -279,6 +282,9 @@ public class VariationalInference extends Configured implements Tool, Settings {
           sLogger.info("Warning: " + Settings.REDUCER_OPTION + " ignored in test mode...");
         }
       }
+      if (line.hasOption(Settings.QUEUE_OPTION)) {
+	  queueName = line.getOptionValue(Settings.QUEUE_OPTION);
+      }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
       formatter.printHelp(VariationalInference.class.getName(), options);
@@ -293,13 +299,13 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
     return run(inputPath, outputPath, numberOfTopics, numberOfTerms, numberOfIterations,
         mapperTasks, reducerTasks, localMerge, training, randomStartGamma, resume, informedPrior,
-        modelPath, snapshotIndex, mapperCombiner, truncateBeta);
+	       modelPath, snapshotIndex, mapperCombiner, truncateBeta, queueName);
   }
 
   private int run(String inputPath, String outputPath, int numberOfTopics, int numberOfTerms,
       int numberOfIterations, int mapperTasks, int reducerTasks, boolean localMerge,
       boolean training, boolean randomStartGamma, boolean resume, Path informedPrior,
-      String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta)
+		  String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta, String queueName)
       throws Exception {
 
     sLogger.info("Tool: " + VariationalInference.class.getSimpleName());
@@ -429,6 +435,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
       conf.setNumMapTasks(mapperTasks);
       conf.setNumReduceTasks(reducerTasks);
+      conf.setQueueName(queueName);
 
       if (training) {
         MultipleOutputs.addMultiNamedOutput(conf, Settings.BETA, SequenceFileOutputFormat.class,

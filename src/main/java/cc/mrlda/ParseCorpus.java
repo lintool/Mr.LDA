@@ -79,6 +79,7 @@ public class ParseCorpus extends Configured implements Tool {
         .withDescription("input file(s) or directory").isRequired().create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("output directory").isRequired().create(Settings.OUTPUT_OPTION));
+    options.addOption(Settings.QUEUE_OPTION, true, "queue name");
     options
         .addOption(OptionBuilder
             .withArgName(Settings.INTEGER_INDICATOR)
@@ -93,10 +94,12 @@ public class ParseCorpus extends Configured implements Tool {
             "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
         .create(Settings.REDUCER_OPTION));
 
+
     String inputPath = null;
     String outputPath = null;
     int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
+    String queueName = Settings.DEFAULT_QUEUE_NAME;
     // boolean localMerge = FileMerger.LOCAL_MERGE;
 
     CommandLineParser parser = new GnuParser();
@@ -130,6 +133,9 @@ public class ParseCorpus extends Configured implements Tool {
       if (line.hasOption(Settings.REDUCER_OPTION)) {
         numberOfReducers = Integer.parseInt(line.getOptionValue(Settings.REDUCER_OPTION));
       }
+      if (line.hasOption(Settings.QUEUE_OPTION)) {
+        queueName = line.getOptionValue(Settings.QUEUE_OPTION);
+      }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
       formatter.printHelp(ParseCorpus.class.getName(), options);
@@ -149,7 +155,7 @@ public class ParseCorpus extends Configured implements Tool {
     fs.delete(new Path(outputPath), true);
 
     try {
-      tokenizeDocument(inputPath, indexPath, numberOfMappers, numberOfReducers);
+	tokenizeDocument(inputPath, indexPath, numberOfMappers, numberOfReducers,queueName);
 
       String titleGlobString = indexPath + Path.SEPARATOR + TITLE + Settings.STAR;
       String titleString = outputPath + TITLE;
@@ -157,12 +163,12 @@ public class ParseCorpus extends Configured implements Tool {
 
       String termGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
       String termString = outputPath + TERM;
-      Path termIndexPath = indexTerm(termGlobString, termString, numberOfMappers);
+      Path termIndexPath = indexTerm(termGlobString, termString, numberOfMappers, queueName);
 
       String documentGlobString = indexPath + Path.SEPARATOR + DOCUMENT + Settings.STAR;
       String documentString = outputPath + DOCUMENT;
       Path documentPath = indexDocument(documentGlobString, documentString,
-          termIndexPath.toString(), titleIndexPath.toString(), numberOfMappers);
+					termIndexPath.toString(), titleIndexPath.toString(), numberOfMappers, queueName);
     } finally {
       fs.delete(new Path(indexPath), true);
     }
@@ -271,12 +277,13 @@ public class ParseCorpus extends Configured implements Tool {
   }
 
   public void tokenizeDocument(String inputPath, String outputPath, int numberOfMappers,
-      int numberOfReducers) throws Exception {
+    int numberOfReducers, String queueName ) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
     sLogger.info(" - input path: " + inputPath);
     sLogger.info(" - output path: " + outputPath);
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + numberOfReducers);
+    sLogger.info(" - queue name: " + queueName);
 
     JobConf conf = new JobConf(ParseCorpus.class);
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
@@ -289,16 +296,18 @@ public class ParseCorpus extends Configured implements Tool {
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(numberOfReducers);
+    conf.setQueueName(queueName);
 
     conf.setMapperClass(TokenizeMapper.class);
     conf.setReducerClass(TokenizeReducer.class);
     conf.setCombinerClass(TokenizeCombiner.class);
 
+
     conf.setMapOutputKeyClass(Text.class);
     conf.setMapOutputValueClass(PairOfInts.class);
     conf.setOutputKeyClass(Text.class);
     conf.setOutputValueClass(PairOfInts.class);
-
+    
     conf.setInputFormat(TextInputFormat.class);
     conf.setOutputFormat(SequenceFileOutputFormat.class);
 
@@ -376,7 +385,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public Path indexTerm(String inputTerms, String outputTerm, int numberOfMappers) throws Exception {
+    public Path indexTerm(String inputTerms, String outputTerm, int numberOfMappers, String queueName) throws Exception {
     Path inputTermFiles = new Path(inputTerms);
     Path outputTermFile = new Path(outputTerm);
 
@@ -393,6 +402,7 @@ public class ParseCorpus extends Configured implements Tool {
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(1);
+    conf.setQueueName(queueName);
     conf.setMapperClass(IndexTermMapper.class);
     conf.setReducerClass(IndexTermReducer.class);
 
@@ -465,22 +475,25 @@ public class ParseCorpus extends Configured implements Tool {
         Path[] inputFiles = DistributedCache.getLocalCacheFiles(conf);
         // TODO: check for the missing columns...
         if (inputFiles != null) {
+
           for (Path path : inputFiles) {
             try {
+	      sLogger.info("Checking file in dCache: " + path.getName());
               sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
 
               if (path.getName().startsWith(TERM)) {
                 Preconditions.checkArgument(termIndex == null,
                     "Term index was initialized already...");
                 termIndex = ParseCorpus.importParameter(sequenceFileReader);
+		sLogger.info("Term index parameter imported as: " + path);
               }
-              if (path.getName().startsWith(TITLE)) {
+              else if (path.getName().startsWith(TITLE)) {
                 Preconditions.checkArgument(titleIndex == null,
                     "Title index was initialized already...");
                 titleIndex = ParseCorpus.importParameter(sequenceFileReader);
+		sLogger.info("Title index parameter imported as: " + path);
               } else {
-                throw new IllegalArgumentException("Unexpected file in distributed cache: "
-                    + path.getName());
+		  sLogger.info("Unexpected file in distributed cache, not" + TERM + " or " + TITLE + " :" + path.getName());
               }
             } catch (IllegalArgumentException iae) {
               iae.printStackTrace();
@@ -498,7 +511,7 @@ public class ParseCorpus extends Configured implements Tool {
   }
 
   public Path indexDocument(String inputDocument, String outputDocument, String termIndex,
-      String titleIndex, int numberOfMappers) throws Exception {
+  String titleIndex, int numberOfMappers, String queueName) throws Exception {
     Path inputDocumentFiles = new Path(inputDocument);
     Path outputDocumentFiles = new Path(outputDocument);
     Path termIndexPath = new Path(termIndex);
@@ -524,6 +537,7 @@ public class ParseCorpus extends Configured implements Tool {
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(0);
+    conf.setQueueName(queueName);
     conf.setMapperClass(IndexDocumentMapper.class);
 
     conf.setMapOutputKeyClass(IntWritable.class);
@@ -569,6 +583,9 @@ public class ParseCorpus extends Configured implements Tool {
     IntWritable intWritable = new IntWritable();
     Text text = new Text();
     while (sequenceFileReader.next(intWritable, text)) {
+	if(intWritable.get()%100000 == 0){
+	    sLogger.info("Imported val " + intWritable.toString() + " of length " + text.getLength());
+	}
       hashMap.put(text.toString(), intWritable.get());
     }
 
