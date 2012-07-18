@@ -554,7 +554,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
             PairOfIntFloat.class, HMapIFW.class, true, true);
       } else {
         betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-            reducerTasks, PairOfIntFloat.class, HMapIIW.class, true, true);
+            reducerTasks, PairOfIntFloat.class, HMapIFW.class, true, true);
       }
 
       sLogger.info("Log likelihood after iteration " + (iterationCount + 1) + " is "
