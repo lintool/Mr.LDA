@@ -14,7 +14,6 @@ public interface Settings {
 
   public static final String MAPPER_OPTION = "mapper";
   public static final String REDUCER_OPTION = "reducer";
-  public static final String QUEUE_OPTION = "queue";
 
   public static final int DEFAULT_NUMBER_OF_MAPPERS = 100;
   public static final int DEFAULT_NUMBER_OF_REDUCERS = 50;

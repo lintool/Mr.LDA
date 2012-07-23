@@ -41,6 +41,8 @@ import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
+import org.apache.hadoop.util.GenericOptionsParser;
+
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
@@ -72,6 +74,8 @@ public class ParseCorpus extends Configured implements Tool {
 
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
+    
+
     Options options = new Options();
 
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
@@ -79,7 +83,6 @@ public class ParseCorpus extends Configured implements Tool {
         .withDescription("input file(s) or directory").isRequired().create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("output directory").isRequired().create(Settings.OUTPUT_OPTION));
-    options.addOption(Settings.QUEUE_OPTION, true, "queue name");
     options
         .addOption(OptionBuilder
             .withArgName(Settings.INTEGER_INDICATOR)
@@ -99,9 +102,10 @@ public class ParseCorpus extends Configured implements Tool {
     String outputPath = null;
     int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
-    String queueName = Settings.DEFAULT_QUEUE_NAME;
     // boolean localMerge = FileMerger.LOCAL_MERGE;
 
+
+    Configuration config = getConf();
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
     try {
@@ -133,9 +137,6 @@ public class ParseCorpus extends Configured implements Tool {
       if (line.hasOption(Settings.REDUCER_OPTION)) {
         numberOfReducers = Integer.parseInt(line.getOptionValue(Settings.REDUCER_OPTION));
       }
-      if (line.hasOption(Settings.QUEUE_OPTION)) {
-        queueName = line.getOptionValue(Settings.QUEUE_OPTION);
-      }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
       formatter.printHelp(ParseCorpus.class.getName(), options);
@@ -151,24 +152,24 @@ public class ParseCorpus extends Configured implements Tool {
     String indexPath = outputPath + INDEX;
 
     // Delete the output directory if it exists already
-    FileSystem fs = FileSystem.get(new JobConf(ParseCorpus.class));
+    FileSystem fs = FileSystem.get(new JobConf(config, ParseCorpus.class));
     fs.delete(new Path(outputPath), true);
 
     try {
-	tokenizeDocument(inputPath, indexPath, numberOfMappers, numberOfReducers,queueName);
+	tokenizeDocument(config, inputPath, indexPath, numberOfMappers, numberOfReducers);
 
       String titleGlobString = indexPath + Path.SEPARATOR + TITLE + Settings.STAR;
       String titleString = outputPath + TITLE;
-      Path titleIndexPath = indexTitle(titleGlobString, titleString, numberOfMappers);
+      Path titleIndexPath = indexTitle(config, titleGlobString, titleString, numberOfMappers);
 
       String termGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
       String termString = outputPath + TERM;
-      Path termIndexPath = indexTerm(termGlobString, termString, numberOfMappers, queueName);
+      Path termIndexPath = indexTerm(config, termGlobString, termString, numberOfMappers);
 
       String documentGlobString = indexPath + Path.SEPARATOR + DOCUMENT + Settings.STAR;
       String documentString = outputPath + DOCUMENT;
-      Path documentPath = indexDocument(documentGlobString, documentString,
-					termIndexPath.toString(), titleIndexPath.toString(), numberOfMappers, queueName);
+      Path documentPath = indexDocument(config, documentGlobString, documentString,
+					termIndexPath.toString(), titleIndexPath.toString(), numberOfMappers);
     } finally {
       fs.delete(new Path(indexPath), true);
     }
@@ -276,16 +277,15 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public void tokenizeDocument(String inputPath, String outputPath, int numberOfMappers,
-    int numberOfReducers, String queueName ) throws Exception {
+    public void tokenizeDocument(Configuration config, String inputPath, String outputPath, int numberOfMappers,
+    int numberOfReducers ) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
     sLogger.info(" - input path: " + inputPath);
     sLogger.info(" - output path: " + outputPath);
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + numberOfReducers);
-    sLogger.info(" - queue name: " + queueName);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(config, ParseCorpus.class);
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
     FileSystem fs = FileSystem.get(conf);
 
@@ -296,7 +296,6 @@ public class ParseCorpus extends Configured implements Tool {
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(numberOfReducers);
-    conf.setQueueName(queueName);
 
     conf.setMapperClass(TokenizeMapper.class);
     conf.setReducerClass(TokenizeReducer.class);
@@ -330,15 +329,17 @@ public class ParseCorpus extends Configured implements Tool {
     return;
   }
 
-  public Path indexTitle(String inputTitles, String outputTitle, int numberOfMappers)
+    public Path indexTitle(Configuration config, String inputTitles, String outputTitle, int numberOfMappers)
       throws Exception {
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(config, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     Path titleIndexPath = new Path(outputTitle);
 
     String outputTitleFile = titleIndexPath.getParent() + Path.SEPARATOR + Settings.TEMP;
-    Path titlePath = FileMerger.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
+    FileMerger fm = new FileMerger();
+    fm.setConf(config);
+    Path titlePath = fm.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
         Text.class, NullWritable.class, true);
 
     SequenceFile.Reader sequenceFileReader = null;
@@ -385,11 +386,11 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-    public Path indexTerm(String inputTerms, String outputTerm, int numberOfMappers, String queueName) throws Exception {
+    public Path indexTerm(Configuration config, String inputTerms, String outputTerm, int numberOfMappers) throws Exception {
     Path inputTermFiles = new Path(inputTerms);
     Path outputTermFile = new Path(outputTerm);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(config, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
@@ -402,7 +403,6 @@ public class ParseCorpus extends Configured implements Tool {
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(1);
-    conf.setQueueName(queueName);
     conf.setMapperClass(IndexTermMapper.class);
     conf.setReducerClass(IndexTermReducer.class);
 
@@ -510,14 +510,14 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public Path indexDocument(String inputDocument, String outputDocument, String termIndex,
-  String titleIndex, int numberOfMappers, String queueName) throws Exception {
+    public Path indexDocument(Configuration config, String inputDocument, String outputDocument, String termIndex,
+  String titleIndex, int numberOfMappers) throws Exception {
     Path inputDocumentFiles = new Path(inputDocument);
     Path outputDocumentFiles = new Path(outputDocument);
     Path termIndexPath = new Path(termIndex);
     Path titleIndexPath = new Path(titleIndex);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(config, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
@@ -537,7 +537,6 @@ public class ParseCorpus extends Configured implements Tool {
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(0);
-    conf.setQueueName(queueName);
     conf.setMapperClass(IndexDocumentMapper.class);
 
     conf.setMapOutputKeyClass(IntWritable.class);

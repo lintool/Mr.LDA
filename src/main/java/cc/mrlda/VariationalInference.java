@@ -78,6 +78,8 @@ public class VariationalInference extends Configured implements Tool, Settings {
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
     Options options = new Options();
+    Configuration config = getConf();
+
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
 
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
@@ -111,7 +113,6 @@ public class VariationalInference extends Configured implements Tool, Settings {
             "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
         .create(Settings.REDUCER_OPTION));
 
-    options.addOption(Settings.QUEUE_OPTION, true, "queue name");
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArgs()
         .withDescription("run program in inference mode, i.e. test held-out likelihood")
         .create(Settings.INFERENCE_MODE_OPTION));
@@ -152,7 +153,6 @@ public class VariationalInference extends Configured implements Tool, Settings {
     int numberOfIterations = Settings.DEFAULT_GLOBAL_MAXIMUM_ITERATION;
     int mapperTasks = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int reducerTasks = Settings.DEFAULT_NUMBER_OF_REDUCERS;
-    String queueName = Settings.DEFAULT_QUEUE_NAME;
 
     int numberOfTerms = 0;
 
@@ -282,9 +282,6 @@ public class VariationalInference extends Configured implements Tool, Settings {
           sLogger.info("Warning: " + Settings.REDUCER_OPTION + " ignored in test mode...");
         }
       }
-      if (line.hasOption(Settings.QUEUE_OPTION)) {
-	  queueName = line.getOptionValue(Settings.QUEUE_OPTION);
-      }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
       formatter.printHelp(VariationalInference.class.getName(), options);
@@ -297,15 +294,15 @@ public class VariationalInference extends Configured implements Tool, Settings {
       System.exit(0);
     }
 
-    return run(inputPath, outputPath, numberOfTopics, numberOfTerms, numberOfIterations,
+    return run(config, inputPath, outputPath, numberOfTopics, numberOfTerms, numberOfIterations,
         mapperTasks, reducerTasks, localMerge, training, randomStartGamma, resume, informedPrior,
-	       modelPath, snapshotIndex, mapperCombiner, truncateBeta, queueName);
+	       modelPath, snapshotIndex, mapperCombiner, truncateBeta);
   }
 
-  private int run(String inputPath, String outputPath, int numberOfTopics, int numberOfTerms,
+    private int run(Configuration config, String inputPath, String outputPath, int numberOfTopics, int numberOfTerms,
       int numberOfIterations, int mapperTasks, int reducerTasks, boolean localMerge,
       boolean training, boolean randomStartGamma, boolean resume, Path informedPrior,
-		  String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta, String queueName)
+		  String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta)
       throws Exception {
 
     sLogger.info("Tool: " + VariationalInference.class.getSimpleName());
@@ -325,7 +322,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
     sLogger.info(" - truncation beta: " + truncateBeta);
     sLogger.info(" - informed prior: " + informedPrior);
 
-    JobConf conf = new JobConf(VariationalInference.class);
+    JobConf conf = new JobConf(config, VariationalInference.class);
     FileSystem fs = FileSystem.get(conf);
 
     // delete the overall output path
@@ -393,7 +390,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
     int numberOfDocuments = 0;
 
     do {
-      conf = new JobConf(VariationalInference.class);
+      conf = new JobConf(config, VariationalInference.class);
       if (training) {
         conf.setJobName(VariationalInference.class.getSimpleName() + " - Iteration "
             + (iterationCount + 1));
@@ -435,7 +432,6 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
       conf.setNumMapTasks(mapperTasks);
       conf.setNumReduceTasks(reducerTasks);
-      conf.setQueueName(queueName);
 
       if (training) {
         MultipleOutputs.addMultiNamedOutput(conf, Settings.BETA, SequenceFileOutputFormat.class,
