@@ -1,5 +1,6 @@
 package cc.mrlda;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 
 import org.apache.commons.cli.CommandLine;
@@ -31,7 +32,12 @@ import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
+import org.apache.log4j.SimpleLayout;
+import org.apache.log4j.TTCCLayout;
+import org.apache.log4j.WriterAppender;
+import org.apache.log4j.helpers.DateLayout;
 
 import com.google.common.base.Preconditions;
 
@@ -69,7 +75,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
   // set the minimum memory threshold, in bytes
   public static final int MEMORY_THRESHOLD = 64 * 1024 * 1024;
 
-  static final Logger sLogger = Logger.getLogger(VariationalInference.class);
+  static Logger sLogger = Logger.getLogger(VariationalInference.class);
 
   static enum ParameterCounter {
     TOTAL_DOC, TOTAL_TERM, LOG_LIKELIHOOD, CONFIG_TIME, TRAINING_TIME, DUMMY_COUNTER,
@@ -140,6 +146,10 @@ public class VariationalInference extends Configured implements Tool, Settings {
     // options.addOption(Settings.TRUNCATE_BETA_OPTION, false,
     // "enable beta truncation of top 1000");
 
+    Appender loggingAppender = new WriterAppender(new TTCCLayout(), new FileOutputStream("VariationalInference.log."+System.currentTimeMillis(),true));
+    sLogger.addAppender(loggingAppender);
+    
+    
     boolean mapperCombiner = false;
     boolean truncateBeta = false;
 
