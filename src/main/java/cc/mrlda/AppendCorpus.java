@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.TreeSet;
 
 import org.apache.commons.cli.CommandLine;
@@ -60,656 +61,690 @@ import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.util.map.HMapII;
 
 public class AppendCorpus extends Configured implements Tool {
-  static final Logger sLogger = Logger.getLogger(AppendCorpus.class);
+	static final Logger sLogger = Logger.getLogger(AppendCorpus.class);
 
-  private static enum MyCounter {
-    TOTAL_DOCS, TOTAL_TERMS,
-  }
+	private static enum MyCounter {
+		TOTAL_DOCS, TOTAL_TERMS,
+	}
 
-  public static final String DOCUMENT = "document";
-  public static final String TERM = "term";
-  public static final String TITLE = "title";
-  public static final String INDEX = "index";
+	public static final String DOCUMENT = "document";
+	public static final String TERM = "term";
+	public static final String TITLE = "title";
+	public static final String INDEX = "index";
 
-  @SuppressWarnings("unchecked")
-  public int run(String[] args) throws Exception {
-    Options options = new Options();
+	@SuppressWarnings("unchecked")
+	public int run(String[] args) throws Exception {
+		Options options = new Options();
 
-    options.addOption(Settings.HELP_OPTION, false, "print the help message");
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-		      .withDescription("input file(s) or directory").isRequired().create(Settings.INPUT_OPTION));
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-		      .withDescription("output directory").isRequired().create(Settings.OUTPUT_OPTION));
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-		      .withDescription("existing index path").isRequired().create(Settings.INDEX_OPTION));
-    options
-        .addOption(OptionBuilder
-            .withArgName(Settings.INTEGER_INDICATOR)
-            .hasArg()
-            .withDescription(
-                "number of mappers (default - " + Settings.DEFAULT_NUMBER_OF_MAPPERS + ")")
-            .create(Settings.MAPPER_OPTION));
-    options.addOption(OptionBuilder
-        .withArgName(Settings.INTEGER_INDICATOR)
-        .hasArg()
-        .withDescription(
-            "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
-        .create(Settings.REDUCER_OPTION));
-
-
-    String inputPath = null;
-    String outputPath = null;
-    String idxPath = null;
-		      
-    int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
-    int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
-    // boolean localMerge = FileMerger.LOCAL_MERGE;
-
-    CommandLineParser parser = new GnuParser();
-    HelpFormatter formatter = new HelpFormatter();
-    try {
-      CommandLine line = parser.parse(options, args);
-
-      if (line.hasOption(Settings.HELP_OPTION)) {
-        formatter.printHelp(AppendCorpus.class.getName(), options);
-        System.exit(0);
-      }
-
-      if (line.hasOption(Settings.INPUT_OPTION)) {
-        inputPath = line.getOptionValue(Settings.INPUT_OPTION);
-      } else {
-        throw new ParseException("Parsing failed due to " + Settings.INPUT_OPTION
-            + " not initialized...");
-      }
-
-      if (line.hasOption(Settings.OUTPUT_OPTION)) {
-        outputPath = line.getOptionValue(Settings.OUTPUT_OPTION);
-      } else {
-        throw new ParseException("Parsing failed due to " + Settings.OUTPUT_OPTION
-            + " not initialized...");
-      }
+		options.addOption(Settings.HELP_OPTION, false, "print the help message");
+		options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
+				.withDescription("input file(s) or directory").isRequired().create(Settings.INPUT_OPTION));
+		options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
+				.withDescription("output directory").isRequired().create(Settings.OUTPUT_OPTION));
+		options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
+				.withDescription("existing index path").isRequired().create(Settings.INDEX_OPTION));
+		options
+		.addOption(OptionBuilder
+				.withArgName(Settings.INTEGER_INDICATOR)
+				.hasArg()
+				.withDescription(
+						"number of mappers (default - " + Settings.DEFAULT_NUMBER_OF_MAPPERS + ")")
+						.create(Settings.MAPPER_OPTION));
+		options.addOption(OptionBuilder
+				.withArgName(Settings.INTEGER_INDICATOR)
+				.hasArg()
+				.withDescription(
+						"number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
+						.create(Settings.REDUCER_OPTION));
 
 
-      if (line.hasOption(Settings.INDEX_OPTION)) {
-        idxPath = line.getOptionValue(Settings.INDEX_OPTION);
-      } else {
-        throw new ParseException("Parsing failed due to " + Settings.INDEX_OPTION
-            + " not initialized...");
-      }
+		String inputPath = null;
+		String outputPath = null;
+		String idxPath = null;
 
-      if (line.hasOption(Settings.MAPPER_OPTION)) {
-        numberOfMappers = Integer.parseInt(line.getOptionValue(Settings.MAPPER_OPTION));
-      }
+		int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
+		int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
+		// boolean localMerge = FileMerger.LOCAL_MERGE;
 
-      if (line.hasOption(Settings.REDUCER_OPTION)) {
-        numberOfReducers = Integer.parseInt(line.getOptionValue(Settings.REDUCER_OPTION));
-      }
+		CommandLineParser parser = new GnuParser();
+		HelpFormatter formatter = new HelpFormatter();
+		try {
+			CommandLine line = parser.parse(options, args);
 
-    } catch (ParseException pe) {
-      System.err.println(pe.getMessage());
-      formatter.printHelp(AppendCorpus.class.getName(), options);
-      System.exit(0);
-    } catch (NumberFormatException nfe) {
-      System.err.println(nfe.getMessage());
-      System.exit(0);
-    }
+			if (line.hasOption(Settings.HELP_OPTION)) {
+				formatter.printHelp(AppendCorpus.class.getName(), options);
+				System.exit(0);
+			}
 
-    if (!outputPath.endsWith(Path.SEPARATOR)) {
-      outputPath += Path.SEPARATOR;
-    }
-    
+			if (line.hasOption(Settings.INPUT_OPTION)) {
+				inputPath = line.getOptionValue(Settings.INPUT_OPTION);
+			} else {
+				throw new ParseException("Parsing failed due to " + Settings.INPUT_OPTION
+						+ " not initialized...");
+			}
 
-    String indexPath = outputPath + INDEX;
+			if (line.hasOption(Settings.OUTPUT_OPTION)) {
+				outputPath = line.getOptionValue(Settings.OUTPUT_OPTION);
+			} else {
+				throw new ParseException("Parsing failed due to " + Settings.OUTPUT_OPTION
+						+ " not initialized...");
+			}
 
-    // Delete the output directory if it exists already
-    FileSystem fs = FileSystem.get(new JobConf(AppendCorpus.class));
-    fs.delete(new Path(outputPath), true);
 
-    Configuration config = getConf();
-    try {
-      tokenizeDocument(config, inputPath, indexPath, numberOfMappers, numberOfReducers);
+			if (line.hasOption(Settings.INDEX_OPTION)) {
+				idxPath = line.getOptionValue(Settings.INDEX_OPTION);
+			} else {
+				throw new ParseException("Parsing failed due to " + Settings.INDEX_OPTION
+						+ " not initialized...");
+			}
 
-      String titleGlobString = indexPath + Path.SEPARATOR + TITLE + Settings.STAR;
-      String titleString = outputPath + TITLE;
-      Path titleIndexPath = indexTitle(config, titleGlobString, idxPath + TITLE, titleString, numberOfMappers);
+			if (line.hasOption(Settings.MAPPER_OPTION)) {
+				numberOfMappers = Integer.parseInt(line.getOptionValue(Settings.MAPPER_OPTION));
+			}
 
-      String termGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
-      String termString = outputPath + TERM;
-      Path termIndexPath = indexTerm(config, termGlobString, idxPath + TERM, termString, numberOfMappers);
+			if (line.hasOption(Settings.REDUCER_OPTION)) {
+				numberOfReducers = Integer.parseInt(line.getOptionValue(Settings.REDUCER_OPTION));
+			}
 
-      String documentGlobString = indexPath + Path.SEPARATOR + DOCUMENT + Settings.STAR;
-      String documentString = outputPath + DOCUMENT;
-      Path documentPath = indexDocument(config, documentGlobString, documentString,
+		} catch (ParseException pe) {
+			System.err.println(pe.getMessage());
+			formatter.printHelp(AppendCorpus.class.getName(), options);
+			System.exit(0);
+		} catch (NumberFormatException nfe) {
+			System.err.println(nfe.getMessage());
+			System.exit(0);
+		}
+
+		if (!outputPath.endsWith(Path.SEPARATOR)) {
+			outputPath += Path.SEPARATOR;
+		}
+
+
+		String indexPath = outputPath + INDEX;
+
+		// Delete the output directory if it exists already
+		FileSystem fs = FileSystem.get(new JobConf(AppendCorpus.class));
+		fs.delete(new Path(outputPath), true);
+
+		Configuration config = getConf();
+		try {
+			tokenizeDocument(config, inputPath, indexPath, numberOfMappers, numberOfReducers);
+
+			String titleGlobString = indexPath + Path.SEPARATOR + TITLE + Settings.STAR;
+			String titleString = outputPath + TITLE;
+			Path titleIndexPath = indexTitle(config, titleGlobString, idxPath + TITLE, titleString, numberOfMappers);
+
+			String termGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
+			String termString = outputPath + TERM;
+			Path termIndexPath = indexTerm(config, termGlobString, idxPath + TERM, termString, numberOfMappers);
+
+			String documentGlobString = indexPath + Path.SEPARATOR + DOCUMENT + Settings.STAR;
+			String documentString = outputPath + DOCUMENT;
+			Path documentPath = indexDocument(config, documentGlobString, documentString,
 					termIndexPath.toString(), titleIndexPath.toString(), numberOfMappers);
-    } finally {
-      fs.delete(new Path(indexPath), true);
-    }
+		} finally {
+			fs.delete(new Path(indexPath), true);
+		}
 
-    return 0;
-  }
+		return 0;
+	}
 
-  public static class TokenizeMapper extends MapReduceBase implements
-      Mapper<LongWritable, Text, Text, PairOfInts> {
-    private Text term = new Text();
-    private PairOfInts counts = new PairOfInts();
+	
+	/*******
+	 *** Tokenize Document
+	 *******/
+	
+	
+	public void tokenizeDocument(Configuration config, String inputPath, String outputPath, int numberOfMappers,
+			int numberOfReducers) throws Exception {
+		sLogger.info("Tool: " + AppendCorpus.class.getSimpleName());
+		sLogger.info(" - input path: " + inputPath);
+		sLogger.info(" - output path: " + outputPath);
+		sLogger.info(" - number of mappers: " + numberOfMappers);
+		sLogger.info(" - number of reducers: " + numberOfReducers);
 
-    private OutputCollector<Text, HMapSIW> outputDocument = null;
-    private OutputCollector<Text, NullWritable> outputTitle = null;
-    private MultipleOutputs multipleOutputs = null;
+		JobConf conf = new JobConf(config, AppendCorpus.class);
+		conf.setJobName(AppendCorpus.class.getSimpleName() + " - tokenize document");
+		FileSystem fs = FileSystem.get(conf);
 
-    private static final StandardAnalyzer standardAnalyzer = new StandardAnalyzer(Version.LUCENE_35);
-    private TokenStream stream = null;
+		MultipleOutputs.addMultiNamedOutput(conf, DOCUMENT, SequenceFileOutputFormat.class, Text.class,
+				HMapSIW.class);
+		MultipleOutputs.addMultiNamedOutput(conf, TITLE, SequenceFileOutputFormat.class, Text.class,
+				NullWritable.class);
 
-    private Text docTitle = new Text();
-    private HMapSIW docContent = null;
-    private Iterator<String> itr = null;
-    private String temp = null;
+		conf.setNumMapTasks(numberOfMappers);
+		conf.setNumReduceTasks(numberOfReducers);
 
-    @SuppressWarnings("deprecation")
-    public void map(LongWritable key, Text value, OutputCollector<Text, PairOfInts> output,
-        Reporter reporter) throws IOException {
-      if (outputDocument == null) {
-        outputDocument = multipleOutputs.getCollector(DOCUMENT, DOCUMENT, reporter);
-        outputTitle = multipleOutputs.getCollector(TITLE, TITLE, reporter);
-      }
-
-      temp = value.toString();
-      int index = temp.indexOf(Settings.TAB);
-      docTitle.set(temp.substring(0, index).trim());
-      System.out.println("Title "+docTitle.toString());
-      docContent = new HMapSIW();
-      stream = standardAnalyzer.tokenStream("contents,",
-          new StringReader(temp.substring(index + 1)));
-      TermAttribute termAttribute = stream.addAttribute(TermAttribute.class);
-      while (stream.incrementToken()) {
-        docContent.increment(termAttribute.term());
-      }
-      outputTitle.collect(docTitle, NullWritable.get());
-      outputDocument.collect(docTitle, docContent);
-
-      itr = docContent.keySet().iterator();
-      while (itr.hasNext()) {
-        temp = itr.next();
-        term.set(temp);
-        counts.set(1, docContent.get(temp));
-        output.collect(term, counts);
-      }
-
-      reporter.incrCounter(MyCounter.TOTAL_DOCS, 1);
-    }
-
-    public void configure(JobConf conf) {
-      multipleOutputs = new MultipleOutputs(conf);
-    }
-
-    public void close() throws IOException {
-      multipleOutputs.close();
-    }
-  }
-
-  public static class TokenizeCombiner extends MapReduceBase implements
-      Reducer<Text, PairOfInts, Text, PairOfInts> {
-    private PairOfInts counts = new PairOfInts();
-
-    public void reduce(Text key, Iterator<PairOfInts> values,
-        OutputCollector<Text, PairOfInts> output, Reporter reporter) throws IOException {
-      int documentFrequency = 0;
-      int termFrequency = 0;
-
-      while (values.hasNext()) {
-        counts = values.next();
-        documentFrequency += counts.getLeftElement();
-        termFrequency += counts.getRightElement();
-      }
-
-      counts.set(documentFrequency, termFrequency);
-      output.collect(key, counts);
-    }
-  }
-
-  public static class TokenizeReducer extends MapReduceBase implements
-      Reducer<Text, PairOfInts, Text, PairOfInts> {
-    private PairOfInts counts = new PairOfInts();
-
-    public void reduce(Text key, Iterator<PairOfInts> values,
-        OutputCollector<Text, PairOfInts> output, Reporter reporter) throws IOException {
-      int documentFrequency = 0;
-      int termFrequency = 0;
-
-      while (values.hasNext()) {
-        counts = values.next();
-        documentFrequency += counts.getLeftElement();
-        termFrequency += counts.getRightElement();
-      }
-
-      counts.set(documentFrequency, termFrequency);
-      output.collect(key, counts);
-
-      reporter.incrCounter(MyCounter.TOTAL_TERMS, 1);
-    }
-  }
-
-  public void tokenizeDocument(Configuration config, String inputPath, String outputPath, int numberOfMappers,
-    int numberOfReducers) throws Exception {
-    sLogger.info("Tool: " + AppendCorpus.class.getSimpleName());
-    sLogger.info(" - input path: " + inputPath);
-    sLogger.info(" - output path: " + outputPath);
-    sLogger.info(" - number of mappers: " + numberOfMappers);
-    sLogger.info(" - number of reducers: " + numberOfReducers);
-
-    JobConf conf = new JobConf(config, AppendCorpus.class);
-    conf.setJobName(AppendCorpus.class.getSimpleName() + " - tokenize document");
-    FileSystem fs = FileSystem.get(conf);
-
-    MultipleOutputs.addMultiNamedOutput(conf, DOCUMENT, SequenceFileOutputFormat.class, Text.class,
-        HMapSIW.class);
-    MultipleOutputs.addMultiNamedOutput(conf, TITLE, SequenceFileOutputFormat.class, Text.class,
-        NullWritable.class);
-
-    conf.setNumMapTasks(numberOfMappers);
-    conf.setNumReduceTasks(numberOfReducers);
-
-    conf.setMapperClass(TokenizeMapper.class);
-    conf.setReducerClass(TokenizeReducer.class);
-    conf.setCombinerClass(TokenizeCombiner.class);
+		conf.setMapperClass(TokenizeMapper.class);
+		conf.setReducerClass(TokenizeReducer.class);
+		conf.setCombinerClass(TokenizeCombiner.class);
 
 
-    conf.setMapOutputKeyClass(Text.class);
-    conf.setMapOutputValueClass(PairOfInts.class);
-    conf.setOutputKeyClass(Text.class);
-    conf.setOutputValueClass(PairOfInts.class);
-    
-    conf.setInputFormat(TextInputFormat.class);
-    conf.setOutputFormat(SequenceFileOutputFormat.class);
+		conf.setMapOutputKeyClass(Text.class);
+		conf.setMapOutputValueClass(PairOfInts.class);
+		conf.setOutputKeyClass(Text.class);
+		conf.setOutputValueClass(PairOfInts.class);
 
-    FileInputFormat.setInputPaths(conf, new Path(inputPath));
-    FileOutputFormat.setOutputPath(conf, new Path(outputPath));
-    FileOutputFormat.setCompressOutput(conf, true);
+		conf.setInputFormat(TextInputFormat.class);
+		conf.setOutputFormat(SequenceFileOutputFormat.class);
 
-    long startTime = System.currentTimeMillis();
-    RunningJob job = JobClient.runJob(conf);
-    sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
-        + " seconds");
+		FileInputFormat.setInputPaths(conf, new Path(inputPath));
+		FileOutputFormat.setOutputPath(conf, new Path(outputPath));
+		FileOutputFormat.setCompressOutput(conf, true);
 
-    Counters counters = job.getCounters();
-    int documentCount = (int) counters.findCounter(MyCounter.TOTAL_DOCS).getCounter();
-    sLogger.info("Total number of documents is: " + documentCount);
+		long startTime = System.currentTimeMillis();
+		RunningJob job = JobClient.runJob(conf);
+		sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
+				+ " seconds");
 
-    int termCount = (int) counters.findCounter(MyCounter.TOTAL_TERMS).getCounter();
-    sLogger.info("Total number of terms is: " + termCount);
+		Counters counters = job.getCounters();
+		int documentCount = (int) counters.findCounter(MyCounter.TOTAL_DOCS).getCounter();
+		sLogger.info("Total number of documents is: " + documentCount);
 
-    return;
-  }
+		int termCount = (int) counters.findCounter(MyCounter.TOTAL_TERMS).getCounter();
+		sLogger.info("Total number of terms is: " + termCount);
 
-    public Path indexTitle(Configuration config, String inputTitles, String existingTitles, String outputTitle, int numberOfMappers)
-      throws Exception {
-    JobConf conf = new JobConf(AppendCorpus.class);
-    FileSystem fs = FileSystem.get(conf);
+		return;
+	}
+	
+	public static class TokenizeMapper extends MapReduceBase implements
+	Mapper<LongWritable, Text, Text, PairOfInts> {
+		private Text term = new Text();
+		private PairOfInts counts = new PairOfInts();
 
-    Path titleIndexPath = new Path(outputTitle);
+		private OutputCollector<Text, HMapSIW> outputDocument = null;
+		private OutputCollector<Text, NullWritable> outputTitle = null;
+		private MultipleOutputs multipleOutputs = null;
 
-    String outputTitleFile = titleIndexPath.getParent() + Path.SEPARATOR + Settings.TEMP;
-    Path existingPath = new Path(existingTitles);
-    FileMerger fm = new FileMerger();
-    fm.setConf(config);
-    Path titlePath = fm.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
-        Text.class, NullWritable.class, true);
+		private static final StandardAnalyzer standardAnalyzer = new StandardAnalyzer(Version.LUCENE_35);
+		private TokenStream stream = null;
 
-    SequenceFile.Reader sequenceFileReader = null;
-    SequenceFile.Reader existingIdxReader = null;
-    SequenceFile.Writer sequenceFileWriter = null;
-    fs.createNewFile(titleIndexPath);
-    try {
-      sequenceFileReader = new SequenceFile.Reader(fs, titlePath, conf);
-      existingIdxReader = new SequenceFile.Reader(fs, existingPath, conf);
-      sequenceFileWriter = new SequenceFile.Writer(fs, conf, titleIndexPath, IntWritable.class,
-          Text.class);
-      appendTitles(sequenceFileReader, existingIdxReader, sequenceFileWriter);
-      sLogger.info("Successfully index all the titles to " + titleIndexPath);
-    } finally {
-      IOUtils.closeStream(sequenceFileReader);
-      IOUtils.closeStream(sequenceFileWriter);
-      fs.delete(new Path(outputTitleFile), true);
-    }
+		private Text docTitle = new Text();
+		private HMapSIW docContent = null;
+		private Iterator<String> itr = null;
+		private String temp = null;
 
-    return titleIndexPath;
-  }
+		@SuppressWarnings("deprecation")
+		public void map(LongWritable key, Text value, OutputCollector<Text, PairOfInts> output,
+				Reporter reporter) throws IOException {
+			if (outputDocument == null) {
+				outputDocument = multipleOutputs.getCollector(DOCUMENT, DOCUMENT, reporter);
+				outputTitle = multipleOutputs.getCollector(TITLE, TITLE, reporter);
+			}
 
-  public static class IndexTermMapper extends MapReduceBase implements
-      Mapper<Text, PairOfInts, PairOfInts, Text> {
-    @SuppressWarnings("deprecation")
-    public void map(Text key, PairOfInts value, OutputCollector<PairOfInts, Text> output,
-        Reporter reporter) throws IOException {
-      value.set(-value.getLeftElement(), -value.getRightElement());
-      output.collect(value, key);
-    }
-  }
+			temp = value.toString();
+			int index = temp.indexOf(Settings.TAB);
+			docTitle.set(temp.substring(0, index).trim());
+			System.out.println("Title "+docTitle.toString());
+			docContent = new HMapSIW();
+			stream = standardAnalyzer.tokenStream("contents,",
+					new StringReader(temp.substring(index + 1)));
+			TermAttribute termAttribute = stream.addAttribute(TermAttribute.class);
+			while (stream.incrementToken()) {
+				docContent.increment(termAttribute.term());
+			}
+			outputTitle.collect(docTitle, NullWritable.get());
+			outputDocument.collect(docTitle, docContent);
 
-  public static class IndexTermReducer extends MapReduceBase implements
-      Reducer<PairOfInts, Text, IntWritable, Text> {
-    private IntWritable intWritable = new IntWritable();
-    private int index = 0;
-    private static Map<String, Integer> termIndex = null;
+			itr = docContent.keySet().iterator();
+			while (itr.hasNext()) {
+				temp = itr.next();
+				term.set(temp);
+				counts.set(1, docContent.get(temp));
+				output.collect(term, counts);
+			}
 
-    public void configure(JobConf conf){
-      SequenceFile.Reader sequenceFileReader = null;
-      try {
-	Path[] inputFiles = DistributedCache.getLocalCacheFiles(conf);
-	// TODO: check for the missing columns...
-	if (inputFiles != null) {
-	  
-	  for (Path path : inputFiles) {
-	    try {
-	      sLogger.info("Checking file in dCache: " + path.getName());
-	      sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);		
-	      if (path.getName().startsWith(TERM)) {
-		Preconditions.checkArgument(termIndex == null,
-					    "Term index was initialized already...");
-		termIndex = AppendCorpus.importParameter(sequenceFileReader);
+			reporter.incrCounter(MyCounter.TOTAL_DOCS, 1);
+		}
+
+		public void configure(JobConf conf) {
+			multipleOutputs = new MultipleOutputs(conf);
+		}
+
+		public void close() throws IOException {
+			multipleOutputs.close();
+		}
+	}
+
+	public static class TokenizeCombiner extends MapReduceBase implements
+	Reducer<Text, PairOfInts, Text, PairOfInts> {
+		private PairOfInts counts = new PairOfInts();
+
+		public void reduce(Text key, Iterator<PairOfInts> values,
+				OutputCollector<Text, PairOfInts> output, Reporter reporter) throws IOException {
+			int documentFrequency = 0;
+			int termFrequency = 0;
+
+			while (values.hasNext()) {
+				counts = values.next();
+				documentFrequency += counts.getLeftElement();
+				termFrequency += counts.getRightElement();
+			}
+
+			counts.set(documentFrequency, termFrequency);
+			output.collect(key, counts);
+		}
+	}
+
+	public static class TokenizeReducer extends MapReduceBase implements
+	Reducer<Text, PairOfInts, Text, PairOfInts> {
+		private PairOfInts counts = new PairOfInts();
+
+		public void reduce(Text key, Iterator<PairOfInts> values,
+				OutputCollector<Text, PairOfInts> output, Reporter reporter) throws IOException {
+			int documentFrequency = 0;
+			int termFrequency = 0;
+
+			while (values.hasNext()) {
+				counts = values.next();
+				documentFrequency += counts.getLeftElement();
+				termFrequency += counts.getRightElement();
+			}
+
+			counts.set(documentFrequency, termFrequency);
+			output.collect(key, counts);
+
+			reporter.incrCounter(MyCounter.TOTAL_TERMS, 1);
+		}
+	}
+
+
+	
+	/*******
+	 *** Index Titles
+	 *******/
+	
+
+	public Path indexTitle(Configuration config, String inputTitles, String existingTitles, String outputTitle, int numberOfMappers)
+			throws Exception {
+		JobConf conf = new JobConf(AppendCorpus.class);
+		FileSystem fs = FileSystem.get(conf);
+
+		Path titleIndexPath = new Path(outputTitle);
+
+		String outputTitleFile = titleIndexPath.getParent() + Path.SEPARATOR + Settings.TEMP;
+		Path existingPath = new Path(existingTitles);
+		FileMerger fm = new FileMerger();
+		fm.setConf(config);
+		Path titlePath = fm.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
+				Text.class, NullWritable.class, true);
+
+		SequenceFile.Reader sequenceFileReader = null;
+		SequenceFile.Reader existingIdxReader = null;
+		SequenceFile.Writer sequenceFileWriter = null;
+		fs.createNewFile(titleIndexPath);
+		/**
+		 * NOTE: this only generates new titles for the documents in this corpus
+		 * If you truly want to append the titles, merge the sequence files of the
+		 * existing index and the one just generated.
+		 */
+		try {
+			sequenceFileReader = new SequenceFile.Reader(fs, titlePath, conf);
+			existingIdxReader = new SequenceFile.Reader(fs, existingPath, conf);
+			sequenceFileWriter = new SequenceFile.Writer(fs, conf, titleIndexPath, IntWritable.class,
+					Text.class);
+			createNewTitles(sequenceFileReader, existingIdxReader, sequenceFileWriter);
+			sLogger.info("Successfully index all the titles to " + titleIndexPath);
+		} finally {
+			IOUtils.closeStream(sequenceFileReader);
+			IOUtils.closeStream(sequenceFileWriter);
+			fs.delete(new Path(outputTitleFile), true);
+		}
+
+		return titleIndexPath;
+	}
+	
+	public static int createNewTitles(SequenceFile.Reader sequenceFileReader, SequenceFile.Reader existingIdxReader,
+			SequenceFile.Writer sequenceWriter) throws IOException {
+		Text text = new Text();
+		IntWritable intWritable = new IntWritable();
+		int index = 0;
+		Map<String, Integer> titleIndex = null;
+		titleIndex = importParameter(existingIdxReader);
+		//    TODO: Find max idx
+		Integer maxIdx = Collections.max(titleIndex.values());
+		index = maxIdx.intValue();
+		while (sequenceFileReader.next(text)) {
+				index++;
+				intWritable.set(index);
+				sequenceWriter.append(intWritable, text);
+		}
+		return index;
+	}
+
+	
+	/*******
+	 *** Index Terms
+	 *******/
+	
+	public Path indexTerm(Configuration config, String inputTerms, String existingTerms, String outputTerm, int numberOfMappers) throws Exception {
+		Path inputTermFiles = new Path(inputTerms);
+		Path outputTermFile = new Path(outputTerm);
+
+		JobConf conf = new JobConf(config, AppendCorpus.class);
+		FileSystem fs = FileSystem.get(conf);
+
+		sLogger.info("Tool: " + AppendCorpus.class.getSimpleName());
+		sLogger.info(" - input path: " + inputTermFiles);
+		sLogger.info(" - output path: " + outputTermFile);
+		sLogger.info(" - number of mappers: " + numberOfMappers);
+		sLogger.info(" - number of reducers: " + 1);
+
+		conf.setJobName(AppendCorpus.class.getSimpleName() + " - index term");
+
+		conf.setNumMapTasks(numberOfMappers);
+		conf.setNumReduceTasks(1);
+		conf.setMapperClass(IndexTermMapper.class);
+		conf.setReducerClass(IndexTermReducer.class);
+
+		conf.setMapOutputKeyClass(PairOfInts.class);
+		conf.setMapOutputValueClass(Text.class);
+		conf.setOutputKeyClass(IntWritable.class);
+		conf.setOutputValueClass(Text.class);
+
+		conf.setInputFormat(SequenceFileInputFormat.class);
+		conf.setOutputFormat(SequenceFileOutputFormat.class);
+
+		Path termIndexPath = new Path(existingTerms);
+		DistributedCache.addCacheFile(termIndexPath.toUri(), conf);
+
+		String outputString = outputTermFile.getParent() + Path.SEPARATOR + Settings.TEMP;
+		Path outputPath = new Path(outputString);
+		fs.delete(outputPath, true);
+
+		FileInputFormat.setInputPaths(conf, inputTermFiles);
+		FileOutputFormat.setOutputPath(conf, outputPath);
+		FileOutputFormat.setCompressOutput(conf, true);
+
+		try {
+			long startTime = System.currentTimeMillis();
+			RunningJob job = JobClient.runJob(conf);
+			sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
+					+ " seconds");
+
+			fs.rename(new Path(outputString + Path.SEPARATOR + "part-00000"), outputTermFile);
+			sLogger.info("Successfully index all the terms at " + outputTermFile);
+		} finally {
+			fs.delete(outputPath, true);
+		}
+
+		return outputTermFile;
+	}
+
+	public static int appendTerms(SequenceFile.Reader sequenceFileReader,
+			SequenceFile.Reader existingIdxReader,
+			SequenceFile.Writer sequenceFileWriter) throws IOException {
+		TreeSet<PairOfIntString> treeMap = new TreeSet<PairOfIntString>(new Comparator() {
+			@Override
+			public int compare(Object obj1, Object obj2) {
+				PairOfIntString entry1 = (PairOfIntString) obj1;
+				PairOfIntString entry2 = (PairOfIntString) obj2;
+				if (entry1.getLeftElement() > entry2.getLeftElement()) {
+					return -1;
+				} else if (entry1.getLeftElement() < entry2.getLeftElement()) {
+					return entry1.getRightElement().compareTo(entry2.getRightElement());
+				} else {
+					return 0;
+				}
+			}
+		});
+
+		Text text = new Text();
+		PairOfInts pairOfInts = new PairOfInts();
+		while (sequenceFileReader.next(text, pairOfInts)) {
+			treeMap.add(new PairOfIntString(pairOfInts.getLeftElement(), text.toString()));
+		}
+
+		int index = 0;
+		IntWritable intWritable = new IntWritable();
+		Map<String,Integer> termIndex = importParameter(existingIdxReader);
 		Integer maxIdx = Collections.max(termIndex.values());
 		index = maxIdx.intValue();
-		sLogger.info("Term index parameter imported as: " + path);
-	      } else {
-		sLogger.info("Unexpected file in distributed cache, not" + TERM + " or " + TITLE + " :" + path.getName());
-	      }
-	    } catch (IllegalArgumentException iae) {
-	      iae.printStackTrace();
-	    } catch (IOException ioe) {
-	      ioe.printStackTrace();
-	    }
-	  }
+		Iterator<PairOfIntString> itr = treeMap.iterator();
+		while (itr.hasNext()) {
+			text.set(itr.next().getRightElement());
+			if(termIndex.containsKey(text.toString())){
+				intWritable.set(termIndex.get(text.toString()));
+				sequenceFileWriter.append(intWritable,text);
+			} else {
+				index++;
+				intWritable.set(index);
+				sequenceFileWriter.append(intWritable, text);
+			}
+		}
+
+		return index;
 	}
-      } catch (IOException ioe) {
-	ioe.printStackTrace();
-      } finally {
-	IOUtils.closeStream(sequenceFileReader);
-      }
-    }
-  
-    @SuppressWarnings("deprecation")
-    public void reduce(PairOfInts key, Iterator<Text> values,
-        OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException {
 	
-      while (values.hasNext()) {
-        index++;
-        intWritable.set(index);
-        output.collect(intWritable, values.next());
-      }
-    }
-  }
-
-    public Path indexTerm(Configuration config, String inputTerms, String existingTerms, String outputTerm, int numberOfMappers) throws Exception {
-    Path inputTermFiles = new Path(inputTerms);
-    Path outputTermFile = new Path(outputTerm);
-
-    JobConf conf = new JobConf(config, AppendCorpus.class);
-    FileSystem fs = FileSystem.get(conf);
-
-    sLogger.info("Tool: " + AppendCorpus.class.getSimpleName());
-    sLogger.info(" - input path: " + inputTermFiles);
-    sLogger.info(" - output path: " + outputTermFile);
-    sLogger.info(" - number of mappers: " + numberOfMappers);
-    sLogger.info(" - number of reducers: " + 1);
-
-    conf.setJobName(AppendCorpus.class.getSimpleName() + " - index term");
-
-    conf.setNumMapTasks(numberOfMappers);
-    conf.setNumReduceTasks(1);
-    conf.setMapperClass(IndexTermMapper.class);
-    conf.setReducerClass(IndexTermReducer.class);
-
-    conf.setMapOutputKeyClass(PairOfInts.class);
-    conf.setMapOutputValueClass(Text.class);
-    conf.setOutputKeyClass(IntWritable.class);
-    conf.setOutputValueClass(Text.class);
-
-    conf.setInputFormat(SequenceFileInputFormat.class);
-    conf.setOutputFormat(SequenceFileOutputFormat.class);
-
-    Path termIndexPath = new Path(existingTerms);
-    DistributedCache.addCacheFile(termIndexPath.toUri(), conf);
-
-    String outputString = outputTermFile.getParent() + Path.SEPARATOR + Settings.TEMP;
-    Path outputPath = new Path(outputString);
-    fs.delete(outputPath, true);
-
-    FileInputFormat.setInputPaths(conf, inputTermFiles);
-    FileOutputFormat.setOutputPath(conf, outputPath);
-    FileOutputFormat.setCompressOutput(conf, true);
-
-    try {
-      long startTime = System.currentTimeMillis();
-      RunningJob job = JobClient.runJob(conf);
-      sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
-          + " seconds");
-
-      fs.rename(new Path(outputString + Path.SEPARATOR + "part-00000"), outputTermFile);
-      sLogger.info("Successfully index all the terms at " + outputTermFile);
-    } finally {
-      fs.delete(outputPath, true);
-    }
-
-    return outputTermFile;
-  }
-
-  public static class IndexDocumentMapper extends MapReduceBase implements
-      Mapper<Text, HMapSIW, IntWritable, Document> {
-    private static Map<String, Integer> termIndex = null;
-    private static Map<String, Integer> titleIndex = null;
-
-    private IntWritable index = new IntWritable();
-    private Document document = new Document();
-    private HMapII content = new HMapII();
-
-    private Iterator<String> itr = null;
-    private String temp = null;
-
-    @SuppressWarnings("deprecation")
-    public void map(Text key, HMapSIW value, OutputCollector<IntWritable, Document> output,
-        Reporter reporter) throws IOException {
-      Preconditions.checkArgument(titleIndex.containsKey(key.toString()),
-          "How embarrassing! Could not find title " + temp + " in index...");
-      index.set(titleIndex.get(key.toString()));
-
-      content.clear();
-      itr = value.keySet().iterator();
-      while (itr.hasNext()) {
-        temp = itr.next();
-        Preconditions.checkArgument(termIndex.containsKey(temp),
-            "How embarrassing! Could not find term " + temp + " in index...");
-        content.put(termIndex.get(temp), value.get(temp));
-      }
-      document.setDocument(content);
-
-      output.collect(index, document);
-    }
-
-    public void configure(JobConf conf) {
-      SequenceFile.Reader sequenceFileReader = null;
-      try {
-        Path[] inputFiles = DistributedCache.getLocalCacheFiles(conf);
-        // TODO: check for the missing columns...
-        if (inputFiles != null) {
-
-          for (Path path : inputFiles) {
-            try {
-	      sLogger.info("Checking file in dCache: " + path.getName());
-              sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
-
-              if (path.getName().startsWith(TERM)) {
-                Preconditions.checkArgument(termIndex == null,
-                    "Term index was initialized already...");
-                termIndex = AppendCorpus.importParameter(sequenceFileReader);
-		sLogger.info("Term index parameter imported as: " + path);
-              }
-              else if (path.getName().startsWith(TITLE)) {
-                Preconditions.checkArgument(titleIndex == null,
-                    "Title index was initialized already...");
-                titleIndex = AppendCorpus.importParameter(sequenceFileReader);
-		sLogger.info("Title index parameter imported as: " + path);
-              } else {
-		  sLogger.info("Unexpected file in distributed cache, not" + TERM + " or " + TITLE + " :" + path.getName());
-              }
-            } catch (IllegalArgumentException iae) {
-              iae.printStackTrace();
-            } catch (IOException ioe) {
-              ioe.printStackTrace();
-            }
-          }
-        }
-      } catch (IOException ioe) {
-        ioe.printStackTrace();
-      } finally {
-        IOUtils.closeStream(sequenceFileReader);
-      }
-    }
-  }
-
-  public Path indexDocument(Configuration config, String inputDocument, String outputDocument, String termIndex,
-  String titleIndex, int numberOfMappers) throws Exception {
-    Path inputDocumentFiles = new Path(inputDocument);
-    Path outputDocumentFiles = new Path(outputDocument);
-    Path termIndexPath = new Path(termIndex);
-    Path titleIndexPath = new Path(titleIndex);
-
-    JobConf conf = new JobConf(config, AppendCorpus.class);
-    FileSystem fs = FileSystem.get(conf);
-
-    sLogger.info("Tool: " + AppendCorpus.class.getSimpleName());
-    sLogger.info(" - input path: " + inputDocumentFiles);
-    sLogger.info(" - output path: " + outputDocumentFiles);
-    sLogger.info(" - term index path: " + termIndexPath);
-    sLogger.info(" - title index path: " + titleIndexPath);
-    sLogger.info(" - number of mappers: " + numberOfMappers);
-    sLogger.info(" - number of reducers: " + 0);
-
-    conf.setJobName(AppendCorpus.class.getSimpleName() + " - index document");
-
-    Preconditions.checkArgument(fs.exists(termIndexPath), "Missing term index files...");
-    DistributedCache.addCacheFile(termIndexPath.toUri(), conf);
-    Preconditions.checkArgument(fs.exists(titleIndexPath), "Missing title index files...");
-    DistributedCache.addCacheFile(titleIndexPath.toUri(), conf);
-
-    conf.setNumMapTasks(numberOfMappers);
-    conf.setNumReduceTasks(0);
-    conf.setMapperClass(IndexDocumentMapper.class);
-
-    conf.setMapOutputKeyClass(IntWritable.class);
-    conf.setMapOutputValueClass(Document.class);
-    conf.setOutputKeyClass(IntWritable.class);
-    conf.setOutputValueClass(Document.class);
-
-    conf.setInputFormat(SequenceFileInputFormat.class);
-    conf.setOutputFormat(SequenceFileOutputFormat.class);
-
-    FileInputFormat.setInputPaths(conf, inputDocumentFiles);
-    FileOutputFormat.setOutputPath(conf, outputDocumentFiles);
-    FileOutputFormat.setCompressOutput(conf, false);
-
-    long startTime = System.currentTimeMillis();
-    RunningJob job = JobClient.runJob(conf);
-    sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
-        + " seconds");
-
-    sLogger.info("Successfully index all the documents at " + outputDocumentFiles);
-
-    return outputDocumentFiles;
-  }
-    
-  public static int appendTitles(SequenceFile.Reader sequenceFileReader, SequenceFile.Reader existingIdxReader,
-				   SequenceFile.Writer sequenceWriter) throws IOException {
-    Text text = new Text();
-    IntWritable intWritable = new IntWritable();
-    int index = 0;
-    Map<String, Integer> titleIndex = null;
-    titleIndex = importParameter(existingIdxReader);
-    //    TODO: Find max idx
-    Integer maxIdx = Collections.max(titleIndex.values());
-    index = maxIdx.intValue();
-    while (sequenceFileReader.next(text)) {
-	if(titleIndex.containsKey(text.toString())){
-	    intWritable.set(titleIndex.get(text.toString()));
-	    sequenceWriter.append(intWritable, text);
-	} else {
-	    index++;
-	    intWritable.set(index);
-	    sequenceWriter.append(intWritable, text);
+	public static class IndexTermMapper extends MapReduceBase implements
+	Mapper<Text, PairOfInts, PairOfInts, Text> {
+		@SuppressWarnings("deprecation")
+		public void map(Text key, PairOfInts value, OutputCollector<PairOfInts, Text> output,
+				Reporter reporter) throws IOException {
+			value.set(-value.getLeftElement(), -value.getRightElement());
+			output.collect(value, key);
+		}
 	}
-    }
+	//The original code seems to order the indices by frequency, but
+	//that's not possible for appending.
+	public static class IndexTermReducer extends MapReduceBase implements
+	Reducer<PairOfInts, Text, IntWritable, Text> {
+		private IntWritable intWritable = new IntWritable();
+		private int index = 0;
+		private boolean indexPrinted = false;
+		private static Map<String, Integer> termIndex = null;
 
-    return index;
-  }
+		public void configure(JobConf conf){
+			SequenceFile.Reader sequenceFileReader = null;
+			try {
+				Path[] inputFiles = DistributedCache.getLocalCacheFiles(conf);
+				// TODO: check for the missing columns...
+				if (inputFiles != null) {
 
-  public static Map<String, Integer> importParameter(SequenceFile.Reader sequenceFileReader)
-      throws IOException {
-    Map<String, Integer> hashMap = new HashMap<String, Integer>();
+					for (Path path : inputFiles) {
+						try {
+							sLogger.info("Checking file in dCache: " + path.getName());
+							sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);		
+							if (path.getName().startsWith(TERM)) {
+								Preconditions.checkArgument(termIndex == null,
+										"Term index was initialized already...");
+								termIndex = AppendCorpus.importParameter(sequenceFileReader);
+								Integer maxIdx = Collections.max(termIndex.values());
+								index = maxIdx.intValue();
+								sLogger.info("Term index parameter imported as: " + path);
+							} else {
+								sLogger.info("Unexpected file in distributed cache, not" + TERM + " or " + TITLE + " :" + path.getName());
+							}
+						} catch (IllegalArgumentException iae) {
+							iae.printStackTrace();
+						} catch (IOException ioe) {
+							ioe.printStackTrace();
+						}
+					}
+				}
+			} catch (IOException ioe) {
+				ioe.printStackTrace();
+			} finally {
+				IOUtils.closeStream(sequenceFileReader);
+			}
+		}
 
-    IntWritable intWritable = new IntWritable();
-    Text text = new Text();
-    while (sequenceFileReader.next(intWritable, text)) {
-	if(intWritable.get()%100000 == 0){
-	    sLogger.info("Imported val " + intWritable.toString() + " of length " + text.getLength());
+		@SuppressWarnings("deprecation")
+		public void reduce(PairOfInts key, Iterator<Text> values,
+				OutputCollector<IntWritable, Text> output, Reporter reporter) throws IOException {
+
+			
+			if(!indexPrinted){
+				indexPrinted=true;
+				Iterator<Entry<String,Integer>> t = termIndex.entrySet().iterator();
+				//Unlike titles, we output all existing terms since simply merging
+				//term files is not possible
+				while(t.hasNext()){
+					Entry<String,Integer> e = t.next();
+					output.collect(new IntWritable(e.getValue()),new Text(e.getKey()));
+				}
+			}
+			while (values.hasNext()) {
+				Text term = values.next();
+				if(!termIndex.containsKey(term.toString())){
+					index++;
+					intWritable.set(index);
+					output.collect(intWritable, term);	
+				}
+			}
+		}
 	}
-      hashMap.put(text.toString(), intWritable.get());
-    }
 
-    return hashMap;
-  }
 
-  public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new AppendCorpus(), args);
-    System.exit(res);
-  }
+	/*******
+	 *** Index Documents
+	 *******/
+	
+	public static class IndexDocumentMapper extends MapReduceBase implements
+	Mapper<Text, HMapSIW, IntWritable, Document> {
+		private static Map<String, Integer> termIndex = null;
+		private static Map<String, Integer> titleIndex = null;
 
-  /**
-   * @deprecated
-   * @param sequenceFileReader
-   * @param sequenceFileWriter
-   * @return
-   * @throws IOException
-   */
-  public static int appendTerms(SequenceFile.Reader sequenceFileReader,
-				SequenceFile.Reader existingIdxReader,
-      SequenceFile.Writer sequenceFileWriter) throws IOException {
-    TreeSet<PairOfIntString> treeMap = new TreeSet<PairOfIntString>(new Comparator() {
-      @Override
-      public int compare(Object obj1, Object obj2) {
-        PairOfIntString entry1 = (PairOfIntString) obj1;
-        PairOfIntString entry2 = (PairOfIntString) obj2;
-        if (entry1.getLeftElement() > entry2.getLeftElement()) {
-          return -1;
-        } else if (entry1.getLeftElement() < entry2.getLeftElement()) {
-          return entry1.getRightElement().compareTo(entry2.getRightElement());
-        } else {
-          return 0;
-        }
-      }
-    });
+		private IntWritable index = new IntWritable();
+		private Document document = new Document();
+		private HMapII content = new HMapII();
 
-    Text text = new Text();
-    PairOfInts pairOfInts = new PairOfInts();
-    while (sequenceFileReader.next(text, pairOfInts)) {
-      treeMap.add(new PairOfIntString(pairOfInts.getLeftElement(), text.toString()));
-    }
+		private Iterator<String> itr = null;
+		private String temp = null;
 
-    int index = 0;
-    IntWritable intWritable = new IntWritable();
-    Map<String,Integer> termIndex = importParameter(existingIdxReader);
-    Integer maxIdx = Collections.max(termIndex.values());
-    index = maxIdx.intValue();
-    Iterator<PairOfIntString> itr = treeMap.iterator();
-    while (itr.hasNext()) {
-	text.set(itr.next().getRightElement());
-	if(termIndex.containsKey(text.toString())){
-	    intWritable.set(termIndex.get(text.toString()));
-	    sequenceFileWriter.append(intWritable,text);
-	} else {
-	    index++;
-	    intWritable.set(index);
-	    sequenceFileWriter.append(intWritable, text);
+		@SuppressWarnings("deprecation")
+		public void map(Text key, HMapSIW value, OutputCollector<IntWritable, Document> output,
+				Reporter reporter) throws IOException {
+			Preconditions.checkArgument(titleIndex.containsKey(key.toString()),
+					"How embarrassing! Could not find title " + temp + " in index...");
+			index.set(titleIndex.get(key.toString()));
+
+			content.clear();
+			itr = value.keySet().iterator();
+			while (itr.hasNext()) {
+				temp = itr.next();
+				Preconditions.checkArgument(termIndex.containsKey(temp),
+						"How embarrassing! Could not find term " + temp + " in index...");
+				content.put(termIndex.get(temp), value.get(temp));
+			}
+			document.setDocument(content);
+
+			output.collect(index, document);
+		}
+
+		public void configure(JobConf conf) {
+			SequenceFile.Reader sequenceFileReader = null;
+			try {
+				Path[] inputFiles = DistributedCache.getLocalCacheFiles(conf);
+				// TODO: check for the missing columns...
+				if (inputFiles != null) {
+
+					for (Path path : inputFiles) {
+						try {
+							sLogger.info("Checking file in dCache: " + path.getName());
+							sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
+
+							if (path.getName().startsWith(TERM)) {
+								Preconditions.checkArgument(termIndex == null,
+										"Term index was initialized already...");
+								termIndex = AppendCorpus.importParameter(sequenceFileReader);
+								sLogger.info("Term index parameter imported as: " + path);
+							}
+							else if (path.getName().startsWith(TITLE)) {
+								Preconditions.checkArgument(titleIndex == null,
+										"Title index was initialized already...");
+								titleIndex = AppendCorpus.importParameter(sequenceFileReader);
+								sLogger.info("Title index parameter imported as: " + path);
+							} else {
+								sLogger.info("Unexpected file in distributed cache, not" + TERM + " or " + TITLE + " :" + path.getName());
+							}
+						} catch (IllegalArgumentException iae) {
+							iae.printStackTrace();
+						} catch (IOException ioe) {
+							ioe.printStackTrace();
+						}
+					}
+				}
+			} catch (IOException ioe) {
+				ioe.printStackTrace();
+			} finally {
+				IOUtils.closeStream(sequenceFileReader);
+			}
+		}
 	}
-    }
-    
-    return index;
-  }
+
+	public Path indexDocument(Configuration config, String inputDocument, String outputDocument, String termIndex,
+			String titleIndex, int numberOfMappers) throws Exception {
+		Path inputDocumentFiles = new Path(inputDocument);
+		Path outputDocumentFiles = new Path(outputDocument);
+		Path termIndexPath = new Path(termIndex);
+		Path titleIndexPath = new Path(titleIndex);
+
+		JobConf conf = new JobConf(config, AppendCorpus.class);
+		FileSystem fs = FileSystem.get(conf);
+
+		sLogger.info("Tool: " + AppendCorpus.class.getSimpleName());
+		sLogger.info(" - input path: " + inputDocumentFiles);
+		sLogger.info(" - output path: " + outputDocumentFiles);
+		sLogger.info(" - term index path: " + termIndexPath);
+		sLogger.info(" - title index path: " + titleIndexPath);
+		sLogger.info(" - number of mappers: " + numberOfMappers);
+		sLogger.info(" - number of reducers: " + 0);
+
+		conf.setJobName(AppendCorpus.class.getSimpleName() + " - index document");
+
+		Preconditions.checkArgument(fs.exists(termIndexPath), "Missing term index files...");
+		DistributedCache.addCacheFile(termIndexPath.toUri(), conf);
+		Preconditions.checkArgument(fs.exists(titleIndexPath), "Missing title index files...");
+		DistributedCache.addCacheFile(titleIndexPath.toUri(), conf);
+
+		conf.setNumMapTasks(numberOfMappers);
+		conf.setNumReduceTasks(0);
+		conf.setMapperClass(IndexDocumentMapper.class);
+
+		conf.setMapOutputKeyClass(IntWritable.class);
+		conf.setMapOutputValueClass(Document.class);
+		conf.setOutputKeyClass(IntWritable.class);
+		conf.setOutputValueClass(Document.class);
+
+		conf.setInputFormat(SequenceFileInputFormat.class);
+		conf.setOutputFormat(SequenceFileOutputFormat.class);
+
+		FileInputFormat.setInputPaths(conf, inputDocumentFiles);
+		FileOutputFormat.setOutputPath(conf, outputDocumentFiles);
+		FileOutputFormat.setCompressOutput(conf, false);
+
+		long startTime = System.currentTimeMillis();
+		RunningJob job = JobClient.runJob(conf);
+		sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
+				+ " seconds");
+
+		sLogger.info("Successfully index all the documents at " + outputDocumentFiles);
+
+		return outputDocumentFiles;
+	}
+
+
+	public static Map<String, Integer> importParameter(SequenceFile.Reader sequenceFileReader)
+			throws IOException {
+		Map<String, Integer> hashMap = new HashMap<String, Integer>();
+
+		IntWritable intWritable = new IntWritable();
+		Text text = new Text();
+		while (sequenceFileReader.next(intWritable, text)) {
+			if(intWritable.get()%100000 == 0){
+				sLogger.info("Imported val " + intWritable.toString() + " of length " + text.getLength());
+			}
+			hashMap.put(text.toString(), intWritable.get());
+		}
+
+		return hashMap;
+	}
+
+	public static void main(String[] args) throws Exception {
+		int res = ToolRunner.run(new Configuration(), new AppendCorpus(), args);
+		System.exit(res);
+	}
+
+	
 }
