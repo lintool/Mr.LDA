@@ -49,7 +49,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.apache.lucene.util.Version;
 
-
 import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.FileMerger;
@@ -62,13 +61,23 @@ public class ParseCorpus extends Configured implements Tool {
   static final Logger sLogger = Logger.getLogger(ParseCorpus.class);
 
   private static enum MyCounter {
-    TOTAL_DOCS, TOTAL_TERMS,
+    TOTAL_DOCS, TOTAL_TERMS, LOW_DOCUMENT_FREQUENCY_TERMS, HIGH_DOCUMENT_FREQUENCY_TERMS, LEFT_OVER_TERMS, LEFT_OVER_DOCUMENTS, COLLAPSED_DOCUMENTS,
   }
 
   public static final String DOCUMENT = "document";
   public static final String TERM = "term";
   public static final String TITLE = "title";
   public static final String INDEX = "index";
+
+  public static final String MINIMUM_DOCUMENT_FREQUENCY = "minimumdocumentfrequency";
+  public static final String MAXIMUM_DOCUMENT_FREQUENCY = "maximumdocumentfrequency";
+  public static final String MINIMUM_TERM_FREQUENCY = "minimumtermfrequency";
+  public static final String MAXIMUM_TERM_FREQUENCY = "maximumtermfrequency";
+
+  public static final float DEFAULT_MINIMUM_DOCUMENT_FREQUENCY = 0.0f;
+  public static final float DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY = 1.0f;
+  public static final float DEFAULT_MINIMUM_TERM_FREQUENCY = 0.0f;
+  public static final float DEFAULT_MAXIMUM_TERM_FREQUENCY = 1.0f;
 
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
@@ -93,10 +102,25 @@ public class ParseCorpus extends Configured implements Tool {
             "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
         .create(Settings.REDUCER_OPTION));
 
+    options.addOption(OptionBuilder
+        .withArgName(Settings.FLOAT_INDICATOR)
+        .hasArg()
+        .withDescription(
+            "minimum document frequency (default - " + DEFAULT_MINIMUM_DOCUMENT_FREQUENCY + ")")
+        .create(MINIMUM_DOCUMENT_FREQUENCY));
+    options.addOption(OptionBuilder
+        .withArgName(Settings.FLOAT_INDICATOR)
+        .hasArg()
+        .withDescription(
+            "maximum document frequency (default - " + DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY + ")")
+        .create(MAXIMUM_DOCUMENT_FREQUENCY));
+
     String inputPath = null;
     String outputPath = null;
     int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
+    float maximumDocumentFrequency = DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY;
+    float minimumDocumentFrequency = DEFAULT_MINIMUM_DOCUMENT_FREQUENCY;
     // boolean localMerge = FileMerger.LOCAL_MERGE;
 
     CommandLineParser parser = new GnuParser();
@@ -130,6 +154,25 @@ public class ParseCorpus extends Configured implements Tool {
       if (line.hasOption(Settings.REDUCER_OPTION)) {
         numberOfReducers = Integer.parseInt(line.getOptionValue(Settings.REDUCER_OPTION));
       }
+
+      if (line.hasOption(MINIMUM_DOCUMENT_FREQUENCY)) {
+        minimumDocumentFrequency = Float
+            .parseFloat(line.getOptionValue(MINIMUM_DOCUMENT_FREQUENCY));
+        Preconditions.checkArgument(minimumDocumentFrequency >= 0 && minimumDocumentFrequency <= 1,
+            "Illegal settings for " + MINIMUM_DOCUMENT_FREQUENCY + " option: must be in [0, 1]...");
+      }
+
+      if (line.hasOption(MAXIMUM_DOCUMENT_FREQUENCY)) {
+        maximumDocumentFrequency = Float
+            .parseFloat(line.getOptionValue(MAXIMUM_DOCUMENT_FREQUENCY));
+        Preconditions.checkArgument(maximumDocumentFrequency >= 0 && maximumDocumentFrequency <= 1,
+            "Illegal settings for " + MAXIMUM_DOCUMENT_FREQUENCY + " option: must be in [0, 1]...");
+      }
+
+      Preconditions.checkArgument(minimumDocumentFrequency < maximumDocumentFrequency, "Option "
+          + MAXIMUM_DOCUMENT_FREQUENCY + " and option " + MINIMUM_DOCUMENT_FREQUENCY
+          + " do not agree with each other: option " + MAXIMUM_DOCUMENT_FREQUENCY
+          + " must be strictly larger than option " + MINIMUM_DOCUMENT_FREQUENCY + "...");
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
       formatter.printHelp(ParseCorpus.class.getName(), options);
@@ -149,7 +192,10 @@ public class ParseCorpus extends Configured implements Tool {
     fs.delete(new Path(outputPath), true);
 
     try {
-      tokenizeDocument(inputPath, indexPath, numberOfMappers, numberOfReducers);
+      PairOfInts pairOfInts = tokenizeDocument(inputPath, indexPath, numberOfMappers,
+          numberOfReducers);
+      int totalNumberOfDocuments = pairOfInts.getLeftElement();
+      int totalNumberOfTerms = pairOfInts.getRightElement();
 
       String titleGlobString = indexPath + Path.SEPARATOR + TITLE + Settings.STAR;
       String titleString = outputPath + TITLE;
@@ -157,7 +203,9 @@ public class ParseCorpus extends Configured implements Tool {
 
       String termGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
       String termString = outputPath + TERM;
-      Path termIndexPath = indexTerm(termGlobString, termString, numberOfMappers);
+      Path termIndexPath = indexTerm(termGlobString, termString, numberOfMappers,
+          totalNumberOfDocuments * minimumDocumentFrequency, totalNumberOfDocuments
+              * maximumDocumentFrequency);
 
       String documentGlobString = indexPath + Path.SEPARATOR + DOCUMENT + Settings.STAR;
       String documentString = outputPath + DOCUMENT;
@@ -270,7 +318,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public void tokenizeDocument(String inputPath, String outputPath, int numberOfMappers,
+  public PairOfInts tokenizeDocument(String inputPath, String outputPath, int numberOfMappers,
       int numberOfReducers) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
     sLogger.info(" - input path: " + inputPath);
@@ -318,7 +366,7 @@ public class ParseCorpus extends Configured implements Tool {
     int termCount = (int) counters.findCounter(MyCounter.TOTAL_TERMS).getCounter();
     sLogger.info("Total number of terms is: " + termCount);
 
-    return;
+    return new PairOfInts(documentCount, termCount);
   }
 
   public Path indexTitle(String inputTitles, String outputTitle, int numberOfMappers)
@@ -352,11 +400,27 @@ public class ParseCorpus extends Configured implements Tool {
 
   public static class IndexTermMapper extends MapReduceBase implements
       Mapper<Text, PairOfInts, PairOfInts, Text> {
+    float minimumDocumentCount = 0;
+    float maximumDocumentCount = Float.MAX_VALUE;
+
     @SuppressWarnings("deprecation")
     public void map(Text key, PairOfInts value, OutputCollector<PairOfInts, Text> output,
         Reporter reporter) throws IOException {
+      if (value.getLeftElement() <= minimumDocumentCount) {
+        reporter.incrCounter(MyCounter.LOW_DOCUMENT_FREQUENCY_TERMS, 1);
+        return;
+      }
+      if (value.getLeftElement() >= maximumDocumentCount) {
+        reporter.incrCounter(MyCounter.HIGH_DOCUMENT_FREQUENCY_TERMS, 1);
+        return;
+      }
       value.set(-value.getLeftElement(), -value.getRightElement());
       output.collect(value, key);
+    }
+
+    public void configure(JobConf conf) {
+      minimumDocumentCount = conf.getFloat("corpus.minimum.document.count", 0);
+      maximumDocumentCount = conf.getFloat("corpus.maximum.document.count", Float.MAX_VALUE);
     }
   }
 
@@ -371,12 +435,14 @@ public class ParseCorpus extends Configured implements Tool {
       while (values.hasNext()) {
         index++;
         intWritable.set(index);
+        reporter.incrCounter(MyCounter.LEFT_OVER_TERMS, 1);
         output.collect(intWritable, values.next());
       }
     }
   }
 
-  public Path indexTerm(String inputTerms, String outputTerm, int numberOfMappers) throws Exception {
+  public Path indexTerm(String inputTerms, String outputTerm, int numberOfMappers,
+      float minimumDocumentCount, float maximumDocumentCount) throws Exception {
     Path inputTermFiles = new Path(inputTerms);
     Path outputTermFile = new Path(outputTerm);
 
@@ -388,6 +454,8 @@ public class ParseCorpus extends Configured implements Tool {
     sLogger.info(" - output path: " + outputTermFile);
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + 1);
+    sLogger.info(" - minimum document count: " + minimumDocumentCount);
+    sLogger.info(" - maximum document count: " + maximumDocumentCount);
 
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - index term");
 
@@ -403,6 +471,9 @@ public class ParseCorpus extends Configured implements Tool {
 
     conf.setInputFormat(SequenceFileInputFormat.class);
     conf.setOutputFormat(SequenceFileOutputFormat.class);
+
+    conf.setFloat("corpus.minimum.document.count", minimumDocumentCount);
+    conf.setFloat("corpus.maximum.document.count", maximumDocumentCount);
 
     String outputString = outputTermFile.getParent() + Path.SEPARATOR + Settings.TEMP;
     Path outputPath = new Path(outputString);
@@ -420,6 +491,18 @@ public class ParseCorpus extends Configured implements Tool {
 
       fs.rename(new Path(outputString + Path.SEPARATOR + "part-00000"), outputTermFile);
       sLogger.info("Successfully index all the terms at " + outputTermFile);
+
+      Counters counters = job.getCounters();
+      int lowDocumentFrequencyTerms = (int) counters.findCounter(
+          MyCounter.LOW_DOCUMENT_FREQUENCY_TERMS).getCounter();
+      sLogger.info("Removed " + lowDocumentFrequencyTerms + " low frequency terms.");
+
+      int highDocumentFrequencyTerms = (int) counters.findCounter(
+          MyCounter.HIGH_DOCUMENT_FREQUENCY_TERMS).getCounter();
+      sLogger.info("Removed " + highDocumentFrequencyTerms + " high frequency terms.");
+
+      int leftOverTerms = (int) counters.findCounter(MyCounter.LEFT_OVER_TERMS).getCounter();
+      sLogger.info("Total number of left-over terms: " + leftOverTerms);
     } finally {
       fs.delete(outputPath, true);
     }
@@ -444,18 +527,25 @@ public class ParseCorpus extends Configured implements Tool {
         Reporter reporter) throws IOException {
       Preconditions.checkArgument(titleIndex.containsKey(key.toString()),
           "How embarrassing! Could not find title " + temp + " in index...");
-      index.set(titleIndex.get(key.toString()));
-
       content.clear();
       itr = value.keySet().iterator();
       while (itr.hasNext()) {
         temp = itr.next();
-        Preconditions.checkArgument(termIndex.containsKey(temp),
-            "How embarrassing! Could not find term " + temp + " in index...");
-        content.put(termIndex.get(temp), value.get(temp));
+        // Preconditions.checkArgument(termIndex.containsKey(temp),
+        // "How embarrassing! Could not find term " + temp + " in index...");
+        if (termIndex.containsKey(temp)) {
+          content.put(termIndex.get(temp), value.get(temp));
+        }
       }
-      document.setDocument(content);
 
+      if (content.size() == 0) {
+        reporter.incrCounter(MyCounter.COLLAPSED_DOCUMENTS, 1);
+        return;
+      }
+
+      reporter.incrCounter(MyCounter.LEFT_OVER_DOCUMENTS, 1);
+      index.set(titleIndex.get(key.toString()));
+      document.setDocument(content);
       output.collect(index, document);
     }
 
@@ -542,8 +632,14 @@ public class ParseCorpus extends Configured implements Tool {
     RunningJob job = JobClient.runJob(conf);
     sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
         + " seconds");
-
     sLogger.info("Successfully index all the documents at " + outputDocumentFiles);
+
+    Counters counters = job.getCounters();
+    int collapsedDocuments = (int) counters.findCounter(MyCounter.COLLAPSED_DOCUMENTS).getCounter();
+    sLogger.info("Total number of collapsed documnts: " + collapsedDocuments);
+
+    int leftOverDocuments = (int) counters.findCounter(MyCounter.LEFT_OVER_DOCUMENTS).getCounter();
+    sLogger.info("Total number of left-over documents: " + leftOverDocuments);
 
     return outputDocumentFiles;
   }

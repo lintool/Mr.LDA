@@ -8,6 +8,7 @@
   <property name="dist.dir" value="dist"/>
   <property name="test.dir" location="test" />
   <property name="javadoc.dir" location="docs/api/" />
+  <property name="bin.dir" location="bin" />
 
   <property name="version" value="0.0.1"/>
 
@@ -40,6 +41,7 @@
     <mkdir dir="${build.dir}" />
     <mkdir dir="${lib.dir}" />
     <mkdir dir="${dist.dir}" />
+    <mkdir dir="${bin.dir}" />
   </target>
 
   <!-- download Ivy from web site so that it can be used even without any special installation -->
@@ -82,7 +84,13 @@
   </target>
 
   <target name="jar" depends="compile" description="generate the distribution">
-    <jar jarfile="${dist.dir}/mrlda-${version}.jar" basedir="${build.dir}" />
+      <jar jarfile="${dist.dir}/mrlda-${version}.jar" basedir="${build.dir}" />
+  </target>
+
+  <target name="export" depends="compile" description="generate Jar with all libs">
+      <jar jarfile="${bin.dir}/Mr.LDA-${version}.jar" basedir="${build.dir}">
+          <zipgroupfileset dir="${lib.dir}" includes="*.jar"/>
+      </jar>
   </target>
 
   <target name="dist" depends="jar,javadoc" description="generate the distribution">
@@ -96,6 +104,7 @@
     <delete dir="${lib.dir}" />
     <delete dir="${dist.dir}" />
     <delete dir="${javadoc.dir}" />
+    <delete dir="${bin.dir}" />
   </target>
 
   <target name="test" depends="jar" description="Execute Unit Tests">
