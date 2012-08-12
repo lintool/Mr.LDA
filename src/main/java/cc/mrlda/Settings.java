@@ -4,6 +4,7 @@ public interface Settings {
   // common settings
   public static final String PATH_INDICATOR = "path";
   public static final String INTEGER_INDICATOR = "int";
+  public static final String FLOAT_INDICATOR = "float";
   public static final String CLASS_INDICATOR = "class";
 
   public static final String HELP_OPTION = "help";
@@ -48,7 +49,7 @@ public interface Settings {
   public static final String BETA = "beta";
   public static final String ALPHA = "alpha";
 
-  public static final int MAXIMUM_GAMMA_ITERATION = 10;
+  public static final int MAXIMUM_GAMMA_ITERATION = 100;
   public static final double DEFAULT_GLOBAL_CONVERGE_CRITERIA = 0.000001;
 
   /**

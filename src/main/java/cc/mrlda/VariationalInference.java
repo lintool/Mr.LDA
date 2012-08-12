@@ -37,7 +37,6 @@ import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.FileMerger;
 import edu.umd.cloud9.io.map.HMapIFW;
-import edu.umd.cloud9.io.map.HMapIIW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.math.Gamma;
@@ -214,7 +213,8 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
       if (line.hasOption(FileMerger.LOCAL_MERGE_OPTION)) {
         if (training) {
-          localMerge = true;
+          // TODO: local merge does not handle compressed data.
+          // localMerge = true;
         } else {
           sLogger.info("Warning: " + FileMerger.LOCAL_MERGE_OPTION + " ignored in testing mode...");
         }
@@ -547,7 +547,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
             PairOfIntFloat.class, HMapIFW.class, true, true);
       } else {
         betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-            reducerTasks, PairOfIntFloat.class, HMapIIW.class, true, true);
+            reducerTasks, PairOfIntFloat.class, HMapIFW.class, true, true);
       }
 
       sLogger.info("Log likelihood after iteration " + (iterationCount + 1) + " is "
