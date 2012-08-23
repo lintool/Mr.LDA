@@ -200,6 +200,10 @@ public class DocumentMapper extends MapReduceBase implements
       }
 
       // TODO: add in null check for content
+      if(content == null){
+      	System.err.println("Error - content was null for document "+key.toString());
+      	return;
+      }
       itr = content.keySet().iterator();
       while (itr.hasNext()) {
         int termID = itr.next();
