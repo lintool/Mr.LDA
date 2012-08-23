@@ -48,6 +48,7 @@ public class InformedPrior extends Configured implements Tool {
     Options options = new Options();
 
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
+    options.addOption("raw",false,"Use raw values instead of index");
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("input file").create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
@@ -58,6 +59,7 @@ public class InformedPrior extends Configured implements Tool {
     String termIndex = null;
     String output = null;
     String input = null;
+    boolean raw = false;
 
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
@@ -85,12 +87,18 @@ public class InformedPrior extends Configured implements Tool {
         throw new ParseException("Parsing failed due to " + Settings.OUTPUT_OPTION
             + " not initialized...");
       }
+      
+      if(line.hasOption("raw")){
+      	raw = true;
+      } 
 
-      if (line.hasOption(ParseCorpus.INDEX)) {
-        termIndex = line.getOptionValue(ParseCorpus.INDEX);
-      } else {
-        throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
-            + " not initialized...");
+      if(!raw){
+      	if (line.hasOption(ParseCorpus.INDEX)) {
+      		termIndex = line.getOptionValue(ParseCorpus.INDEX);
+      	} else {
+      		throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
+      				+ " not initialized...");
+      	}
       }
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
@@ -109,10 +117,13 @@ public class InformedPrior extends Configured implements Tool {
     Preconditions.checkArgument(fs.exists(inputPath) && fs.isFile(inputPath),
         "Illegal input file...");
 
-    Path termIndexPath = new Path(termIndex);
-    Preconditions.checkArgument(fs.exists(termIndexPath) && fs.isFile(termIndexPath),
-        "Illegal term index file...");
-
+    Path termIndexPath = null;
+    if(!raw){
+   	 termIndexPath = new Path(termIndex);
+   	 Preconditions.checkArgument(fs.exists(termIndexPath) && fs.isFile(termIndexPath),
+   			 "Illegal term index file...");
+    }
+    
     Path outputPath = new Path(output);
     fs.delete(outputPath, true);
 
@@ -122,7 +133,9 @@ public class InformedPrior extends Configured implements Tool {
     fs.createNewFile(outputPath);
     try {
       bufferedReader = new BufferedReader(new InputStreamReader(fs.open(inputPath)));
-      sequenceFileReader = new SequenceFile.Reader(fs, termIndexPath, conf);
+      if(!raw){
+      	sequenceFileReader = new SequenceFile.Reader(fs, termIndexPath, conf);
+      }
       sequenceFileWriter = new SequenceFile.Writer(fs, conf, outputPath, IntWritable.class,
           ArrayListOfIntsWritable.class);
       exportTerms(bufferedReader, sequenceFileReader, sequenceFileWriter);
@@ -137,36 +150,45 @@ public class InformedPrior extends Configured implements Tool {
   }
 
   public static void exportTerms(BufferedReader bufferedReader,
-      SequenceFile.Reader sequenceFileReader, SequenceFile.Writer sequenceFileWriter)
-      throws IOException {
-    Map<String, Integer> termIndex = ParseCorpus.importParameter(sequenceFileReader);
+		  SequenceFile.Reader sequenceFileReader, SequenceFile.Writer sequenceFileWriter)
+				  throws IOException {
+	  boolean raw = false;
+	  Map<String, Integer> termIndex  = null;
+	  if(sequenceFileReader == null){ 
+		  raw = true;
+	  } else {
+		  termIndex = ParseCorpus.importParameter(sequenceFileReader);
+	  }
+	  IntWritable intWritable = new IntWritable();
+	  ArrayListOfIntsWritable arrayListOfIntsWritable = new ArrayListOfIntsWritable();
 
-    IntWritable intWritable = new IntWritable();
-    ArrayListOfIntsWritable arrayListOfIntsWritable = new ArrayListOfIntsWritable();
+	  StringTokenizer stk = null;
+	  String temp = null;
 
-    StringTokenizer stk = null;
-    String temp = null;
+	  String line = bufferedReader.readLine();
+	  int index = 0;
+	  while (line != null) {
+		  index++;
+		  intWritable.set(index);
+		  arrayListOfIntsWritable.clear();
 
-    String line = bufferedReader.readLine();
-    int index = 0;
-    while (line != null) {
-      index++;
-      intWritable.set(index);
-      arrayListOfIntsWritable.clear();
+		  stk = new StringTokenizer(line);
+		  while (stk.hasMoreTokens()) {
+			  temp = stk.nextToken();
+			  if(raw){
+				  arrayListOfIntsWritable.add(Integer.parseInt(temp.trim()));
+			  } else {
+				  if (termIndex.containsKey(temp)) {
+					  arrayListOfIntsWritable.add(termIndex.get(temp));
+				  } else {
+					  sLogger.info("How embarrassing! Term " + temp + " not found in the index file...");
+				  }
+			  }
+		  }
 
-      stk = new StringTokenizer(line);
-      while (stk.hasMoreTokens()) {
-        temp = stk.nextToken();
-        if (termIndex.containsKey(temp)) {
-          arrayListOfIntsWritable.add(termIndex.get(temp));
-        } else {
-          sLogger.info("How embarrassing! Term " + temp + " not found in the index file...");
-        }
-      }
-
-      sequenceFileWriter.append(intWritable, arrayListOfIntsWritable);
-      line = bufferedReader.readLine();
-    }
+		  sequenceFileWriter.append(intWritable, arrayListOfIntsWritable);
+		  line = bufferedReader.readLine();
+	  }
   }
 
   public static float getEta(int termID, Set<Integer> knownTerms) {
