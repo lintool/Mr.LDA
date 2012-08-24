@@ -20,20 +20,17 @@
 
   </head>
 
-  <body>
+  <body data-spy="scroll" data-target=".bs-docs-sidebar" style="background-image: url(assets/img/grid-18px-masked.png)">
 
-  <!-- Navbar
-    ================================================== -->
-
-    <div class="navbar navbar-fixed-top">
+    <div class="navbar navbar-inverse navbar-fixed-top">
       <div class="navbar-inner">
         <div class="container">
-          <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+          <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
-          </a>
-          <div class="nav-collapse">
+          </button>
+          <div class="nav-collapse collapse">
             <ul class="nav">
               <li class="active">
                 <a href="./index.html">Home</a>
@@ -57,14 +54,16 @@
 
 <!-- Masthead
 ================================================== -->
-<header class="jumbotron subhead" id="overview">
+<div class="hero-unit" style="background-color: transparent">
   <h1>Mr.LDA</h1>
-  <p class="lead">Flexible, Large-Scale Topic Modeling using Variational Inference in MapReduce<br/>
-  University of Maryland, College Park</p>
+  <h2>Flexible, Scalable, Multilingual Topic Modeling using Variational Inference in MapReduce</h2>
 
-<p>Ke Zhai, Jordan Boyd-Graber, Nima Asadi, and Mohamad Alkhouja.<br/>
-<b>Mr. LDA: A Flexible Large Scale Topic Modeling Package using Variational Inference in MapReduce.</b><br/>
-<i>Proceedings of the 21th International World Wide Web Conference (WWW 2012)</i>, 2012, pages 879-888, Lyon, France.
+  <h3>University of Maryland, College Park</h3>
+
+<p style="padding-bottom: 25px; padding-top: 15px;line-height: 20px;">
+
+<small>Ke Zhai, Jordan Boyd-Graber, Nima Asadi, and Mohamad Alkhouja. <b>Mr. LDA: A Flexible Large Scale Topic Modeling Package using Variational Inference in MapReduce.</b> <i>Proceedings of the 21th International World Wide Web Conference (WWW 2012)</i>, 2012, pages 879-888, Lyon, France.</small>
+
 </p>
 
  <p>
@@ -73,7 +72,7 @@
 <a href="https://github.com/lintool/Mr.LDA" class="btn btn-info btn-medium">Fork me on Github!</a>
 </p>
 
-</header>
+</div>
 
     <script type="text/javascript" src="http://platform.twitter.com/widgets.js"></script>
     <script src="http://twitter.github.com/bootstrap/assets/js/jquery.js"></script>
