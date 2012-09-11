@@ -1,19 +1,3 @@
-/*
- * Ivory: A Hadoop toolkit for Web-scale information retrieval
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0 
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
-
 package cc.mrlda;
 
 import java.util.HashMap;
@@ -54,17 +38,19 @@ public class DisplayTopic extends Configured implements Tool {
     Options options = new Options();
 
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
+    options.addOption("raw",false,"Do not use term index - output raw ids");
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("input beta file").create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("type index file").create(ParseCorpus.INDEX));
+        .withDescription("term index file").create(ParseCorpus.INDEX));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
-        .withDescription("display top types only (default - 10)").create(TOP_DISPLAY_OPTION));
+        .withDescription("display top terms only (default - 10)").create(TOP_DISPLAY_OPTION));
 
     String betaString = null;
     String indexString = null;
     int topDisplay = TOP_DISPLAY;
-
+    boolean raw = false;
+    
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
     try {
@@ -74,6 +60,10 @@ public class DisplayTopic extends Configured implements Tool {
         formatter.printHelp(ParseCorpus.class.getName(), options);
         System.exit(0);
       }
+      
+      if(line.hasOption("raw")){
+      	raw = true;
+      }
 
       if (line.hasOption(Settings.INPUT_OPTION)) {
         betaString = line.getOptionValue(Settings.INPUT_OPTION);
@@ -82,13 +72,14 @@ public class DisplayTopic extends Configured implements Tool {
             + " not initialized...");
       }
 
-      if (line.hasOption(ParseCorpus.INDEX)) {
-        indexString = line.getOptionValue(ParseCorpus.INDEX);
-      } else {
-        throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
-            + " not initialized...");
+      if(!raw){
+      	if (line.hasOption(ParseCorpus.INDEX)) {
+      		indexString = line.getOptionValue(ParseCorpus.INDEX);
+      	} else {
+      		throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
+      				+ " not initialized...");
+      	}
       }
-
       if (line.hasOption(TOP_DISPLAY_OPTION)) {
         topDisplay = Integer.parseInt(line.getOptionValue(TOP_DISPLAY_OPTION));
       }
@@ -104,10 +95,12 @@ public class DisplayTopic extends Configured implements Tool {
     JobConf conf = new JobConf(DisplayTopic.class);
     FileSystem fs = FileSystem.get(conf);
 
-    Path indexPath = new Path(indexString);
-    Preconditions.checkArgument(fs.exists(indexPath) && fs.isFile(indexPath),
-        "Invalid index path...");
-
+    Path indexPath = null;
+    if(!raw){
+   	 indexPath = new Path(indexString);
+   	 Preconditions.checkArgument(fs.exists(indexPath) && fs.isFile(indexPath),
+   			 "Invalid index path...");
+    }
     Path betaPath = new Path(betaString);
     Preconditions.checkArgument(fs.exists(betaPath) && fs.isFile(betaPath), "Invalid beta path...");
 
@@ -115,12 +108,11 @@ public class DisplayTopic extends Configured implements Tool {
     try {
       IntWritable intWritable = new IntWritable();
       Text text = new Text();
-      Map<Integer, String> typeIndex = new HashMap<Integer, String>();
+      Map<Integer, String> termIndex = new HashMap<Integer, String>();
       sequenceFileReader = new SequenceFile.Reader(fs, indexPath, conf);
       while (sequenceFileReader.next(intWritable, text)) {
-        typeIndex.put(intWritable.get(), text.toString());
+        termIndex.put(intWritable.get(), text.toString());
       }
-
       PairOfIntFloat pairOfIntFloat = new PairOfIntFloat();
       // HMapIFW hmap = new HMapIFW();
       HMapIDW hmap = new HMapIDW();
@@ -130,7 +122,7 @@ public class DisplayTopic extends Configured implements Tool {
         treeMap.clear();
 
         System.out.println("==============================");
-        System.out.println("Top ranked " + topDisplay + " types for Topic "
+        System.out.println("Top ranked " + topDisplay + " terms for Topic "
             + pairOfIntFloat.getLeftElement());
         System.out.println("==============================");
 
@@ -148,10 +140,10 @@ public class DisplayTopic extends Configured implements Tool {
         double temp2 = 0;
         while (itr2.hasNext()) {
           temp2 = itr2.next();
-          if (typeIndex.containsKey(treeMap.get(temp2))) {
-            System.out.println(typeIndex.get(treeMap.get(temp2)) + "\t\t" + -temp2);
+          if (termIndex.containsKey(treeMap.get(temp2))) {
+            System.out.println(termIndex.get(treeMap.get(temp2)) + "\t\t" + -temp2);
           } else {
-            System.out.println("How embarrassing! Type index not found...");
+            System.out.println("How embarrassing! Term index not found...");
           }
         }
       }

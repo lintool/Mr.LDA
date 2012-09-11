@@ -41,6 +41,8 @@ import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
+import org.apache.hadoop.util.GenericOptionsParser;
+
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
@@ -61,26 +63,27 @@ public class ParseCorpus extends Configured implements Tool {
   static final Logger sLogger = Logger.getLogger(ParseCorpus.class);
 
   private static enum MyCounter {
-    TOTAL_DOCS, TOTAL_TYPES, LOW_DOCUMENT_FREQUENCY_TYPES, HIGH_DOCUMENT_FREQUENCY_TYPES, LEFT_OVER_TYPES, LEFT_OVER_DOCUMENTS, COLLAPSED_DOCUMENTS,
+    TOTAL_DOCS, TOTAL_TERMS, LOW_DOCUMENT_FREQUENCY_TERMS, HIGH_DOCUMENT_FREQUENCY_TERMS, LEFT_OVER_TERMS, LEFT_OVER_DOCUMENTS, COLLAPSED_DOCUMENTS,
   }
 
   public static final String DOCUMENT = "document";
-  public static final String TYPE = "type";
+  public static final String TERM = "term";
   public static final String TITLE = "title";
   public static final String INDEX = "index";
 
   public static final String MINIMUM_DOCUMENT_FREQUENCY = "minimumdocumentfrequency";
   public static final String MAXIMUM_DOCUMENT_FREQUENCY = "maximumdocumentfrequency";
-  public static final String MINIMUM_TYPE_FREQUENCY = "minimumtypefrequency";
-  public static final String MAXIMUM_TYPE_FREQUENCY = "maximumtypefrequency";
+  public static final String MINIMUM_TERM_FREQUENCY = "minimumtermfrequency";
+  public static final String MAXIMUM_TERM_FREQUENCY = "maximumtermfrequency";
 
   public static final float DEFAULT_MINIMUM_DOCUMENT_FREQUENCY = 0.0f;
   public static final float DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY = 1.0f;
-  public static final float DEFAULT_MINIMUM_TYPE_FREQUENCY = 0.0f;
-  public static final float DEFAULT_MAXIMUM_TYPE_FREQUENCY = 1.0f;
+  public static final float DEFAULT_MINIMUM_TERM_FREQUENCY = 0.0f;
+  public static final float DEFAULT_MAXIMUM_TERM_FREQUENCY = 1.0f;
 
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
+
     Options options = new Options();
 
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
@@ -127,6 +130,7 @@ public class ParseCorpus extends Configured implements Tool {
     float minimumDocumentFrequency = DEFAULT_MINIMUM_DOCUMENT_FREQUENCY;
     boolean localMerge = FileMerger.LOCAL_MERGE;
 
+    Configuration config = getConf();
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
     try {
@@ -196,36 +200,39 @@ public class ParseCorpus extends Configured implements Tool {
     String indexPath = outputPath + INDEX;
 
     // Delete the output directory if it exists already
-    FileSystem fs = FileSystem.get(new JobConf(ParseCorpus.class));
+    FileSystem fs = FileSystem.get(new JobConf(config, ParseCorpus.class));
     fs.delete(new Path(outputPath), true);
 
     try {
-      int[] corpusStatistics = tokenizeDocument(inputPath, indexPath, numberOfMappers,
+      int[] corpusStatistics = tokenizeDocument(config, inputPath, indexPath, numberOfMappers,
           numberOfReducers);
       int documentCount = corpusStatistics[0];
-      int typesCount = corpusStatistics[1];
+      int termsCount = corpusStatistics[1];
 
       String titleGlobString = indexPath + Path.SEPARATOR + TITLE + Settings.UNDER_SCORE + TITLE
           + Settings.DASH + Settings.STAR;
       String titleString = outputPath + TITLE;
+
       // Path titleIndexPath = indexTitle(titleGlobString, titleString, numberOfMappers);
       Path titleIndexPath = null;
       if (localMerge) {
-        titleIndexPath = indexTitle(titleGlobString, titleString, 0);
+        titleIndexPath = indexTitle(config, titleGlobString, titleString, 0);
       } else {
-        titleIndexPath = indexTitle(titleGlobString, titleString, numberOfMappers);
+        titleIndexPath = indexTitle(config, titleGlobString, titleString, numberOfMappers);
       }
 
-      String typeGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
-      String typeString = outputPath + TYPE;
-      Path typeIndexPath = indexType(typeGlobString, typeString, numberOfMappers, documentCount
-          * minimumDocumentFrequency, documentCount * maximumDocumentFrequency);
+      String termGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
+      String termString = outputPath + TERM;
+      Path termIndexPath = indexTerm(config, termGlobString, termString, numberOfMappers,
+          documentCount * minimumDocumentFrequency, documentCount * maximumDocumentFrequency);
 
       String documentGlobString = indexPath + Path.SEPARATOR + DOCUMENT + Settings.UNDER_SCORE
           + DOCUMENT + Settings.DASH + Settings.STAR;
       String documentString = outputPath + DOCUMENT;
-      Path documentPath = indexDocument(documentGlobString, documentString,
-          typeIndexPath.toString(), titleIndexPath.toString(), numberOfMappers);
+
+      Path documentPath = indexDocument(config, documentGlobString, documentString,
+          termIndexPath.toString(), titleIndexPath.toString(), numberOfMappers);
+
     } finally {
       fs.delete(new Path(indexPath), true);
     }
@@ -235,7 +242,7 @@ public class ParseCorpus extends Configured implements Tool {
 
   public static class TokenizeMapper extends MapReduceBase implements
       Mapper<LongWritable, Text, Text, PairOfInts> {
-    private Text type = new Text();
+    private Text term = new Text();
     private PairOfInts counts = new PairOfInts();
 
     private OutputCollector<Text, HMapSIW> outputDocument = null;
@@ -275,9 +282,9 @@ public class ParseCorpus extends Configured implements Tool {
       itr = docContent.keySet().iterator();
       while (itr.hasNext()) {
         temp = itr.next();
-        type.set(temp);
+        term.set(temp);
         counts.set(1, docContent.get(temp));
-        output.collect(type, counts);
+        output.collect(term, counts);
       }
 
       reporter.incrCounter(MyCounter.TOTAL_DOCS, 1);
@@ -299,15 +306,15 @@ public class ParseCorpus extends Configured implements Tool {
     public void reduce(Text key, Iterator<PairOfInts> values,
         OutputCollector<Text, PairOfInts> output, Reporter reporter) throws IOException {
       int documentFrequency = 0;
-      int typeFrequency = 0;
+      int termFrequency = 0;
 
       while (values.hasNext()) {
         counts = values.next();
         documentFrequency += counts.getLeftElement();
-        typeFrequency += counts.getRightElement();
+        termFrequency += counts.getRightElement();
       }
 
-      counts.set(documentFrequency, typeFrequency);
+      counts.set(documentFrequency, termFrequency);
       output.collect(key, counts);
     }
   }
@@ -319,30 +326,30 @@ public class ParseCorpus extends Configured implements Tool {
     public void reduce(Text key, Iterator<PairOfInts> values,
         OutputCollector<Text, PairOfInts> output, Reporter reporter) throws IOException {
       int documentFrequency = 0;
-      int typeFrequency = 0;
+      int termFrequency = 0;
 
       while (values.hasNext()) {
         counts = values.next();
         documentFrequency += counts.getLeftElement();
-        typeFrequency += counts.getRightElement();
+        termFrequency += counts.getRightElement();
       }
 
-      counts.set(documentFrequency, typeFrequency);
+      counts.set(documentFrequency, termFrequency);
       output.collect(key, counts);
 
-      reporter.incrCounter(MyCounter.TOTAL_TYPES, 1);
+      reporter.incrCounter(MyCounter.TOTAL_TERMS, 1);
     }
   }
 
-  public int[] tokenizeDocument(String inputPath, String outputPath, int numberOfMappers,
-      int numberOfReducers) throws Exception {
+  public int[] tokenizeDocument(Configuration config, String inputPath, String outputPath,
+      int numberOfMappers, int numberOfReducers) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - tokenize document");
     sLogger.info(" - input path: " + inputPath);
     sLogger.info(" - output path: " + outputPath);
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + numberOfReducers);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(config, ParseCorpus.class);
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
     FileSystem fs = FileSystem.get(conf);
 
@@ -381,21 +388,27 @@ public class ParseCorpus extends Configured implements Tool {
     corpusStatistics[0] = (int) counters.findCounter(MyCounter.TOTAL_DOCS).getCounter();
     sLogger.info("Total number of documents is: " + corpusStatistics[0]);
 
-    corpusStatistics[1] = (int) counters.findCounter(MyCounter.TOTAL_TYPES).getCounter();
-    sLogger.info("Total number of types is: " + corpusStatistics[1]);
+    corpusStatistics[1] = (int) counters.findCounter(MyCounter.TOTAL_TERMS).getCounter();
+    sLogger.info("Total number of terms is: " + corpusStatistics[1]);
 
     return corpusStatistics;
   }
 
-  public Path indexTitle(String inputTitles, String outputTitle, int numberOfMappers)
-      throws Exception {
-    JobConf conf = new JobConf(ParseCorpus.class);
+  public Path indexTitle(Configuration config, String inputTitles, String outputTitle,
+      int numberOfMappers) throws Exception {
+    JobConf conf = new JobConf(config, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     Path titleIndexPath = new Path(outputTitle);
 
     String outputTitleFile = titleIndexPath.getParent() + Path.SEPARATOR + Settings.TEMP
         + FileMerger.generateRandomString();
+
+    // TODO: add in configuration for file merger object
+    // FileMerger fm = new FileMerger();
+    // fm.setConf(config);
+    // Path titlePath = fm.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
+    // Text.class, NullWritable.class, true);
     Path titlePath = FileMerger.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
         Text.class, NullWritable.class, true);
 
@@ -417,7 +430,7 @@ public class ParseCorpus extends Configured implements Tool {
     return titleIndexPath;
   }
 
-  public static class IndexTypeMapper extends MapReduceBase implements
+  public static class IndexTermMapper extends MapReduceBase implements
       Mapper<Text, PairOfInts, PairOfInts, Text> {
     float minimumDocumentCount = 0;
     float maximumDocumentCount = Float.MAX_VALUE;
@@ -426,11 +439,11 @@ public class ParseCorpus extends Configured implements Tool {
     public void map(Text key, PairOfInts value, OutputCollector<PairOfInts, Text> output,
         Reporter reporter) throws IOException {
       if (value.getLeftElement() < minimumDocumentCount) {
-        reporter.incrCounter(MyCounter.LOW_DOCUMENT_FREQUENCY_TYPES, 1);
+        reporter.incrCounter(MyCounter.LOW_DOCUMENT_FREQUENCY_TERMS, 1);
         return;
       }
       if (value.getLeftElement() > maximumDocumentCount) {
-        reporter.incrCounter(MyCounter.HIGH_DOCUMENT_FREQUENCY_TYPES, 1);
+        reporter.incrCounter(MyCounter.HIGH_DOCUMENT_FREQUENCY_TERMS, 1);
         return;
       }
       value.set(-value.getLeftElement(), -value.getRightElement());
@@ -443,7 +456,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public static class IndexTypeReducer extends MapReduceBase implements
+  public static class IndexTermReducer extends MapReduceBase implements
       Reducer<PairOfInts, Text, IntWritable, Text> {
     private IntWritable intWritable = new IntWritable();
     private int index = 0;
@@ -454,34 +467,34 @@ public class ParseCorpus extends Configured implements Tool {
       while (values.hasNext()) {
         index++;
         intWritable.set(index);
-        reporter.incrCounter(MyCounter.LEFT_OVER_TYPES, 1);
+        reporter.incrCounter(MyCounter.LEFT_OVER_TERMS, 1);
         output.collect(intWritable, values.next());
       }
     }
   }
 
-  public Path indexType(String inputTypes, String outputType, int numberOfMappers,
-      float minimumDocumentCount, float maximumDocumentCount) throws Exception {
-    sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - index type");
-    sLogger.info(" - input path: " + inputTypes);
-    sLogger.info(" - output path: " + outputType);
+  public Path indexTerm(Configuration config, String inputTerms, String outputTerm,
+      int numberOfMappers, float minimumDocumentCount, float maximumDocumentCount) throws Exception {
+    sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - index term");
+    sLogger.info(" - input path: " + inputTerms);
+    sLogger.info(" - output path: " + outputTerm);
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + 1);
     sLogger.info(" - minimum document count: " + minimumDocumentCount);
     sLogger.info(" - maximum document count: " + maximumDocumentCount);
 
-    Path inputTypeFiles = new Path(inputTypes);
-    Path outputTypeFile = new Path(outputType);
+    Path inputTermFiles = new Path(inputTerms);
+    Path outputTermFile = new Path(outputTerm);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(config, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
-    conf.setJobName(ParseCorpus.class.getSimpleName() + " - index type");
+    conf.setJobName(ParseCorpus.class.getSimpleName() + " - index term");
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(1);
-    conf.setMapperClass(IndexTypeMapper.class);
-    conf.setReducerClass(IndexTypeReducer.class);
+    conf.setMapperClass(IndexTermMapper.class);
+    conf.setReducerClass(IndexTermReducer.class);
 
     conf.setMapOutputKeyClass(PairOfInts.class);
     conf.setMapOutputValueClass(Text.class);
@@ -494,12 +507,12 @@ public class ParseCorpus extends Configured implements Tool {
     conf.setFloat("corpus.minimum.document.count", minimumDocumentCount);
     conf.setFloat("corpus.maximum.document.count", maximumDocumentCount);
 
-    String outputString = outputTypeFile.getParent() + Path.SEPARATOR + Settings.TEMP
+    String outputString = outputTermFile.getParent() + Path.SEPARATOR + Settings.TEMP
         + FileMerger.generateRandomString();
     Path outputPath = new Path(outputString);
     fs.delete(outputPath, true);
 
-    FileInputFormat.setInputPaths(conf, inputTypeFiles);
+    FileInputFormat.setInputPaths(conf, inputTermFiles);
     FileOutputFormat.setOutputPath(conf, outputPath);
     FileOutputFormat.setCompressOutput(conf, true);
 
@@ -509,30 +522,30 @@ public class ParseCorpus extends Configured implements Tool {
       sLogger.info("Job Finished in " + (System.currentTimeMillis() - startTime) / 1000.0
           + " seconds");
 
-      fs.rename(new Path(outputString + Path.SEPARATOR + "part-00000"), outputTypeFile);
-      sLogger.info("Successfully index all the types at " + outputTypeFile);
+      fs.rename(new Path(outputString + Path.SEPARATOR + "part-00000"), outputTermFile);
+      sLogger.info("Successfully index all the terms at " + outputTermFile);
 
       Counters counters = job.getCounters();
-      int lowDocumentFrequencyTypes = (int) counters.findCounter(
-          MyCounter.LOW_DOCUMENT_FREQUENCY_TYPES).getCounter();
-      sLogger.info("Removed " + lowDocumentFrequencyTypes + " low frequency types.");
+      int lowDocumentFrequencyTerms = (int) counters.findCounter(
+          MyCounter.LOW_DOCUMENT_FREQUENCY_TERMS).getCounter();
+      sLogger.info("Removed " + lowDocumentFrequencyTerms + " low frequency terms.");
 
-      int highDocumentFrequencyTypes = (int) counters.findCounter(
-          MyCounter.HIGH_DOCUMENT_FREQUENCY_TYPES).getCounter();
-      sLogger.info("Removed " + highDocumentFrequencyTypes + " high frequency types.");
+      int highDocumentFrequencyTerms = (int) counters.findCounter(
+          MyCounter.HIGH_DOCUMENT_FREQUENCY_TERMS).getCounter();
+      sLogger.info("Removed " + highDocumentFrequencyTerms + " high frequency terms.");
 
-      int leftOverTypes = (int) counters.findCounter(MyCounter.LEFT_OVER_TYPES).getCounter();
-      sLogger.info("Total number of left-over types: " + leftOverTypes);
+      int leftOverTerms = (int) counters.findCounter(MyCounter.LEFT_OVER_TERMS).getCounter();
+      sLogger.info("Total number of left-over terms: " + leftOverTerms);
     } finally {
       fs.delete(outputPath, true);
     }
 
-    return outputTypeFile;
+    return outputTermFile;
   }
 
   public static class IndexDocumentMapper extends MapReduceBase implements
       Mapper<Text, HMapSIW, IntWritable, Document> {
-    private static Map<String, Integer> typeIndex = null;
+    private static Map<String, Integer> termIndex = null;
     private static Map<String, Integer> titleIndex = null;
 
     private IntWritable index = new IntWritable();
@@ -551,8 +564,8 @@ public class ParseCorpus extends Configured implements Tool {
       itr = value.keySet().iterator();
       while (itr.hasNext()) {
         temp = itr.next();
-        if (typeIndex.containsKey(temp)) {
-          content.put(typeIndex.get(temp), value.get(temp));
+        if (termIndex.containsKey(temp)) {
+          content.put(termIndex.get(temp), value.get(temp));
         }
       }
 
@@ -573,19 +586,22 @@ public class ParseCorpus extends Configured implements Tool {
         Path[] inputFiles = DistributedCache.getLocalCacheFiles(conf);
         // TODO: check for the missing columns...
         if (inputFiles != null) {
+
           for (Path path : inputFiles) {
             try {
+              sLogger.info("Checking file in dCache: " + path.getName());
               sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
 
-              if (path.getName().startsWith(TYPE)) {
-                Preconditions.checkArgument(typeIndex == null,
-                    "Type index was initialized already...");
-                typeIndex = ParseCorpus.importParameter(sequenceFileReader);
-              }
-              if (path.getName().startsWith(TITLE)) {
+              if (path.getName().startsWith(TERM)) {
+                Preconditions.checkArgument(termIndex == null,
+                    "Term index was initialized already...");
+                termIndex = ParseCorpus.importParameter(sequenceFileReader);
+                // sLogger.info("Term index parameter imported as: " + path);
+              } else if (path.getName().startsWith(TITLE)) {
                 Preconditions.checkArgument(titleIndex == null,
                     "Title index was initialized already...");
                 titleIndex = ParseCorpus.importParameter(sequenceFileReader);
+                // sLogger.info("Title index parameter imported as: " + path);
               } else {
                 throw new IllegalArgumentException("Unexpected file in distributed cache: "
                     + path.getName());
@@ -605,28 +621,28 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public Path indexDocument(String inputDocument, String outputDocument, String typeIndex,
-      String titleIndex, int numberOfMappers) throws Exception {
+  public Path indexDocument(Configuration config, String inputDocument, String outputDocument,
+      String termIndex, String titleIndex, int numberOfMappers) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - index document");
     sLogger.info(" - input path: " + inputDocument);
     sLogger.info(" - output path: " + outputDocument);
-    sLogger.info(" - type index path: " + typeIndex);
+    sLogger.info(" - term index path: " + termIndex);
     sLogger.info(" - title index path: " + titleIndex);
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + 0);
 
     Path inputDocumentFiles = new Path(inputDocument);
     Path outputDocumentFiles = new Path(outputDocument);
-    Path typeIndexPath = new Path(typeIndex);
+    Path termIndexPath = new Path(termIndex);
     Path titleIndexPath = new Path(titleIndex);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(config, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - index document");
 
-    Preconditions.checkArgument(fs.exists(typeIndexPath), "Missing type index files...");
-    DistributedCache.addCacheFile(typeIndexPath.toUri(), conf);
+    Preconditions.checkArgument(fs.exists(termIndexPath), "Missing term index files...");
+    DistributedCache.addCacheFile(termIndexPath.toUri(), conf);
     Preconditions.checkArgument(fs.exists(titleIndexPath), "Missing title index files...");
     DistributedCache.addCacheFile(titleIndexPath.toUri(), conf);
 
@@ -683,6 +699,9 @@ public class ParseCorpus extends Configured implements Tool {
     IntWritable intWritable = new IntWritable();
     Text text = new Text();
     while (sequenceFileReader.next(intWritable, text)) {
+      if (intWritable.get() % 100000 == 0) {
+        sLogger.info("Imported val " + intWritable.toString() + " of length " + text.getLength());
+      }
       hashMap.put(text.toString(), intWritable.get());
     }
 
@@ -701,7 +720,7 @@ public class ParseCorpus extends Configured implements Tool {
    * @return
    * @throws IOException
    */
-  public static int exportTypes(SequenceFile.Reader sequenceFileReader,
+  public static int exportTerms(SequenceFile.Reader sequenceFileReader,
       SequenceFile.Writer sequenceFileWriter) throws IOException {
     TreeSet<PairOfIntString> treeMap = new TreeSet<PairOfIntString>(new Comparator() {
       @Override

@@ -11,12 +11,14 @@ public interface Settings {
 
   public static final String INPUT_OPTION = "input";
   public static final String OUTPUT_OPTION = "output";
+  public static final String INDEX_OPTION = "index";
 
   public static final String MAPPER_OPTION = "mapper";
   public static final String REDUCER_OPTION = "reducer";
 
   public static final int DEFAULT_NUMBER_OF_MAPPERS = 100;
   public static final int DEFAULT_NUMBER_OF_REDUCERS = 50;
+  public static final String DEFAULT_QUEUE_NAME = "default";
 
   public static final char SPACE = ' ';
   public static final char UNDER_SCORE = '_';
@@ -26,7 +28,7 @@ public interface Settings {
   public static final char STAR = '*';
 
   public static final String TOPIC_OPTION = "topic";
-  public static final String TYPE_OPTION = "type";
+  public static final String TERM_OPTION = "term";
   public static final String ITERATION_OPTION = "iteration";
 
   public static final double DEFAULT_COUNTER_SCALE = 100;

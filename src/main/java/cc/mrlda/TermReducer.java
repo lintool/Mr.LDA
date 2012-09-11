@@ -66,7 +66,6 @@ public class TermReducer extends MapReduceBase implements
     multipleOutputs = new MultipleOutputs(conf);
 
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
-    // numberOfTerms = conf.getInt(Settings.PROPERTY_PREFIX + "corpus.types", Integer.MAX_VALUE);
 
     // truncateBeta = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", false);
 
@@ -154,7 +153,7 @@ public class TermReducer extends MapReduceBase implements
 
     // I would be very surprised to get here...
     Preconditions.checkArgument(learning, "Invalid key from Mapper");
-    reporter.incrCounter(ParameterCounter.TOTAL_TYPES, 1);
+    reporter.incrCounter(ParameterCounter.TOTAL_TERMS, 1);
 
     double logPhiValue = values.next().get();
     while (values.hasNext()) {

@@ -29,7 +29,7 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
-import org.apache.hadoop.mapred.lib.NullOutputFormat;
+import org.apache.hadoop.util.GenericOptionsParser;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
@@ -43,7 +43,6 @@ import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.math.Gamma;
 
 public class VariationalInference extends Configured implements Tool, Settings {
-
   public static final float DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD = 0.000001f;
   public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION = 1000;
 
@@ -55,11 +54,6 @@ public class VariationalInference extends Configured implements Tool, Settings {
    */
   public static final int DEFAULT_ALPHA_UPDATE_SCALE_FACTOR = 10;
 
-  /**
-   * @deprecated
-   */
-  public static final float DEFAULT_ALPHA_UPDATE_INITIAL = 100f;
-
   // specific settings
   public static final String TRUNCATE_BETA_OPTION = "truncatebeta";
 
@@ -68,11 +62,12 @@ public class VariationalInference extends Configured implements Tool, Settings {
   static final Logger sLogger = Logger.getLogger(VariationalInference.class);
 
   static enum ParameterCounter {
-    TOTAL_DOCS, TOTAL_TYPES, LOG_LIKELIHOOD, CONFIG_TIME, TRAINING_TIME, DUMMY_COUNTER,
+    TOTAL_DOCS, TOTAL_TERMS, LOG_LIKELIHOOD, CONFIG_TIME, TRAINING_TIME, DUMMY_COUNTER,
   }
 
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
+
     Options options = new Options();
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
 
@@ -83,7 +78,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
     // TODO: relax the term constrain
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
-        .withDescription("number of types").isRequired().create(Settings.TYPE_OPTION));
+        .withDescription("number of terms").isRequired().create(Settings.TERM_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("number of topics").isRequired().create(Settings.TOPIC_OPTION));
 
@@ -148,7 +143,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
     int mapperTasks = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int reducerTasks = Settings.DEFAULT_NUMBER_OF_REDUCERS;
 
-    int numberOfTypes = 0;
+    int numberOfTerms = 0;
 
     boolean resume = Settings.RESUME;
     String modelPath = null;
@@ -157,10 +152,13 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
     Path informedPrior = null;
 
+    GenericOptionsParser genericOptionsParser = new GenericOptionsParser(args);
+    Configuration configuration = genericOptionsParser.getConfiguration();
+
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
     try {
-      CommandLine line = parser.parse(options, args);
+      CommandLine line = parser.parse(options, genericOptionsParser.getRemainingArgs());
 
       if (line.hasOption(Settings.HELP_OPTION)) {
         formatter.printHelp(VariationalInference.class.getName(), options);
@@ -251,10 +249,10 @@ public class VariationalInference extends Configured implements Tool, Settings {
           + Settings.TOPIC_OPTION + " option: must be strictly positive...");
 
       // TODO: need to relax this contrain in the future
-      if (line.hasOption(Settings.TYPE_OPTION)) {
-        numberOfTypes = Integer.parseInt(line.getOptionValue(Settings.TYPE_OPTION));
+      if (line.hasOption(Settings.TERM_OPTION)) {
+        numberOfTerms = Integer.parseInt(line.getOptionValue(Settings.TERM_OPTION));
       }
-      Preconditions.checkArgument(numberOfTypes > 0, "Illegal settings for " + Settings.TYPE_OPTION
+      Preconditions.checkArgument(numberOfTerms > 0, "Illegal settings for " + Settings.TERM_OPTION
           + " option: must be strictly positive...");
 
       if (line.hasOption(Settings.RANDOM_START_GAMMA_OPTION)) {
@@ -303,22 +301,21 @@ public class VariationalInference extends Configured implements Tool, Settings {
       System.exit(0);
     }
 
-    return run(inputPath, outputPath, numberOfTopics, numberOfTypes, numberOfIterations,
-        mapperTasks, reducerTasks, localMerge, training, randomStartGamma, resume, informedPrior,
-        modelPath, snapshotIndex, mapperCombiner, truncateBeta);
+    return run(configuration, inputPath, outputPath, numberOfTopics, numberOfTerms,
+        numberOfIterations, mapperTasks, reducerTasks, localMerge, training, randomStartGamma,
+        resume, informedPrior, modelPath, snapshotIndex, mapperCombiner, truncateBeta);
   }
 
-  private int run(String inputPath, String outputPath, int numberOfTopics, int numberOfTypes,
-      int numberOfIterations, int mapperTasks, int reducerTasks, boolean localMerge,
-      boolean training, boolean randomStartGamma, boolean resume, Path informedPrior,
-      String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta)
-      throws Exception {
-
+  private int run(Configuration configuration, String inputPath, String outputPath,
+      int numberOfTopics, int numberOfTerms, int numberOfIterations, int mapperTasks,
+      int reducerTasks, boolean localMerge, boolean training, boolean randomStartGamma,
+      boolean resume, Path informedPrior, String modelPath, int snapshotIndex,
+      boolean mapperCombiner, boolean truncateBeta) throws Exception {
     sLogger.info("Tool: " + VariationalInference.class.getSimpleName());
     sLogger.info(" - input path: " + inputPath);
     sLogger.info(" - output path: " + outputPath);
     sLogger.info(" - number of topics: " + numberOfTopics);
-    sLogger.info(" - number of types: " + numberOfTypes);
+    sLogger.info(" - number of terms: " + numberOfTerms);
     sLogger.info(" - number of iterations: " + numberOfIterations);
     sLogger.info(" - number of mappers: " + mapperTasks);
     sLogger.info(" - number of reducers: " + reducerTasks);
@@ -330,7 +327,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
     sLogger.info(" - truncation beta: " + truncateBeta);
     sLogger.info(" - informed prior: " + informedPrior);
 
-    JobConf conf = new JobConf(VariationalInference.class);
+    JobConf conf = new JobConf(configuration, VariationalInference.class);
     FileSystem fs = FileSystem.get(conf);
 
     // delete the overall output path
@@ -432,7 +429,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
           Settings.MAXIMUM_GAMMA_ITERATION);
 
       conf.setInt(Settings.PROPERTY_PREFIX + "model.topics", numberOfTopics);
-      conf.setInt(Settings.PROPERTY_PREFIX + "corpus.types", numberOfTypes);
+      conf.setInt(Settings.PROPERTY_PREFIX + "corpus.terms", numberOfTerms);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.train", training);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.random.start", randomStartGamma);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.informed.prior", informedPrior != null);
@@ -495,8 +492,8 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
         numberOfDocuments = (int) counters.findCounter(ParameterCounter.TOTAL_DOCS).getCounter();
         sLogger.info("Total number of documents is: " + numberOfDocuments);
-        numberOfTypes = (int) (counters.findCounter(ParameterCounter.TOTAL_TYPES).getCounter() / numberOfTopics);
-        sLogger.info("Total number of types is: " + numberOfTypes);
+        numberOfTerms = (int) (counters.findCounter(ParameterCounter.TOTAL_TERMS).getCounter() / numberOfTopics);
+        sLogger.info("Total number of terms is: " + numberOfTerms);
 
         double configurationTime = counters.findCounter(ParameterCounter.CONFIG_TIME).getCounter()
             * 1.0 / numberOfDocuments;
@@ -717,6 +714,43 @@ public class VariationalInference extends Configured implements Tool, Settings {
     return alphaVector;
   }
 
+  public static double[] importAlpha(SequenceFile.Reader sequenceFileReader, int numberOfTopics)
+      throws IOException {
+    double[] alpha = new double[numberOfTopics];
+    int counts = 0;
+
+    IntWritable intWritable = new IntWritable();
+    DoubleWritable doubleWritable = new DoubleWritable();
+
+    while (sequenceFileReader.next(intWritable, doubleWritable)) {
+      Preconditions.checkArgument(intWritable.get() > 0 && intWritable.get() <= numberOfTopics,
+          "Invalid alpha index: must be an integer in (0, " + numberOfTopics + "]...");
+
+      // topic is from 1 to K
+      alpha[intWritable.get() - 1] = doubleWritable.get();
+      counts++;
+    }
+    Preconditions.checkArgument(counts == numberOfTopics, "Invalid alpha vector...");
+
+    return alpha;
+  }
+
+  public static void exportAlpha(SequenceFile.Writer sequenceFileWriter, double[] alpha)
+      throws IOException {
+    IntWritable intWritable = new IntWritable();
+    DoubleWritable doubleWritable = new DoubleWritable();
+    for (int i = 0; i < alpha.length; i++) {
+      doubleWritable.set(alpha[i]);
+      intWritable.set(i + 1);
+      sequenceFileWriter.append(intWritable, doubleWritable);
+    }
+  }
+
+  public static void main(String[] args) throws Exception {
+    int res = ToolRunner.run(new Configuration(), new VariationalInference(), args);
+    System.exit(res);
+  }
+
   /**
    * @deprecated
    * @param numberOfTopics
@@ -777,42 +811,5 @@ public class VariationalInference extends Configured implements Tool, Settings {
     }
 
     return alphaUpdate;
-  }
-
-  public static double[] importAlpha(SequenceFile.Reader sequenceFileReader, int numberOfTopics)
-      throws IOException {
-    double[] alpha = new double[numberOfTopics];
-    int counts = 0;
-
-    IntWritable intWritable = new IntWritable();
-    DoubleWritable doubleWritable = new DoubleWritable();
-
-    while (sequenceFileReader.next(intWritable, doubleWritable)) {
-      Preconditions.checkArgument(intWritable.get() > 0 && intWritable.get() <= numberOfTopics,
-          "Invalid alpha index: must be an integer in (0, " + numberOfTopics + "]...");
-
-      // topic is from 1 to K
-      alpha[intWritable.get() - 1] = doubleWritable.get();
-      counts++;
-    }
-    Preconditions.checkArgument(counts == numberOfTopics, "Invalid alpha vector...");
-
-    return alpha;
-  }
-
-  public static void exportAlpha(SequenceFile.Writer sequenceFileWriter, double[] alpha)
-      throws IOException {
-    IntWritable intWritable = new IntWritable();
-    DoubleWritable doubleWritable = new DoubleWritable();
-    for (int i = 0; i < alpha.length; i++) {
-      doubleWritable.set(alpha[i]);
-      intWritable.set(i + 1);
-      sequenceFileWriter.append(intWritable, doubleWritable);
-    }
-  }
-
-  public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new VariationalInference(), args);
-    System.exit(res);
   }
 }

@@ -34,7 +34,7 @@ public class Document implements Writable, Cloneable, Serializable {
   /**
    * Define the total number of words in this document, not necessarily distinct.
    */
-  private int numberOfTerms = 0;
+  private int numberOfTokens = 0;
 
   /**
    * Creates a <code>LDADocument</code> object from a byte array.
@@ -69,7 +69,7 @@ public class Document implements Writable, Cloneable, Serializable {
     if (document != null) {
       Iterator<Integer> itr = this.content.values().iterator();
       while (itr.hasNext()) {
-        numberOfTerms += itr.next();
+        numberOfTokens += itr.next();
       }
     }
   }
@@ -135,8 +135,8 @@ public class Document implements Writable, Cloneable, Serializable {
    * 
    * @return the total number of words in this document, not necessarily distinct.
    */
-  public int getNumberOfTerms() {
-    return numberOfTerms;
+  public int getNumberOfTokens() {
+    return numberOfTokens;
   }
 
   /**
@@ -145,7 +145,7 @@ public class Document implements Writable, Cloneable, Serializable {
    * @param in source for raw byte representation
    */
   public void readFields(DataInput in) throws IOException {
-    numberOfTerms = 0;
+    numberOfTokens = 0;
 
     int numEntries = in.readInt();
     if (numEntries <= 0) {
@@ -156,7 +156,7 @@ public class Document implements Writable, Cloneable, Serializable {
         int id = in.readInt();
         int count = in.readInt();
         content.put(id, count);
-        numberOfTerms += count;
+        numberOfTokens += count;
       }
     }
 
@@ -187,12 +187,12 @@ public class Document implements Writable, Cloneable, Serializable {
 
   public void setDocument(HMapII document) {
     this.content = document;
-    numberOfTerms = 0;
+    numberOfTokens = 0;
 
     if (document != null) {
       Iterator<Integer> itr = this.content.values().iterator();
       while (itr.hasNext()) {
-        numberOfTerms += itr.next();
+        numberOfTokens += itr.next();
       }
     }
   }
