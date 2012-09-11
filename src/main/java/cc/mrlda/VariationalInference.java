@@ -29,6 +29,7 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
+import org.apache.hadoop.mapred.lib.NullOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
@@ -37,16 +38,11 @@ import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.FileMerger;
 import edu.umd.cloud9.io.map.HMapIDW;
-
-//import edu.umd.cloud9.io.map.HMapIFW;
-
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.math.Gamma;
 
 public class VariationalInference extends Configured implements Tool, Settings {
-
-  public static final double DEFAULT_ETA = Math.log(1e-100);
 
   public static final float DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD = 0.000001f;
   public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION = 1000;
@@ -66,16 +62,13 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
   // specific settings
   public static final String TRUNCATE_BETA_OPTION = "truncatebeta";
-  public static final String MAPPER_COMBINER_OPTION = "mappercombiner";
-  // set the minimum memory threshold, in bytes
-  public static final int MEMORY_THRESHOLD = 64 * 1024 * 1024;
 
   public static final int DEFAULT_MAPRED_TASK_TIMEOUT = 1000 * 60 * 60;
 
   static final Logger sLogger = Logger.getLogger(VariationalInference.class);
 
   static enum ParameterCounter {
-    TOTAL_DOC, TOTAL_TERM, LOG_LIKELIHOOD, CONFIG_TIME, TRAINING_TIME, DUMMY_COUNTER,
+    TOTAL_DOCS, TOTAL_TYPES, LOG_LIKELIHOOD, CONFIG_TIME, TRAINING_TIME, DUMMY_COUNTER,
   }
 
   @SuppressWarnings("unchecked")
@@ -90,7 +83,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
     // TODO: relax the term constrain
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
-        .withDescription("number of terms").isRequired().create(Settings.TERM_OPTION));
+        .withDescription("number of types").isRequired().create(Settings.TYPE_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("number of topics").isRequired().create(Settings.TOPIC_OPTION));
 
@@ -155,7 +148,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
     int mapperTasks = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int reducerTasks = Settings.DEFAULT_NUMBER_OF_REDUCERS;
 
-    int numberOfTerms = 0;
+    int numberOfTypes = 0;
 
     boolean resume = Settings.RESUME;
     String modelPath = null;
@@ -258,10 +251,10 @@ public class VariationalInference extends Configured implements Tool, Settings {
           + Settings.TOPIC_OPTION + " option: must be strictly positive...");
 
       // TODO: need to relax this contrain in the future
-      if (line.hasOption(Settings.TERM_OPTION)) {
-        numberOfTerms = Integer.parseInt(line.getOptionValue(Settings.TERM_OPTION));
+      if (line.hasOption(Settings.TYPE_OPTION)) {
+        numberOfTypes = Integer.parseInt(line.getOptionValue(Settings.TYPE_OPTION));
       }
-      Preconditions.checkArgument(numberOfTerms > 0, "Illegal settings for " + Settings.TERM_OPTION
+      Preconditions.checkArgument(numberOfTypes > 0, "Illegal settings for " + Settings.TYPE_OPTION
           + " option: must be strictly positive...");
 
       if (line.hasOption(Settings.RANDOM_START_GAMMA_OPTION)) {
@@ -310,23 +303,22 @@ public class VariationalInference extends Configured implements Tool, Settings {
       System.exit(0);
     }
 
-    return run(inputPath, outputPath, numberOfTopics, numberOfTerms, numberOfIterations,
+    return run(inputPath, outputPath, numberOfTopics, numberOfTypes, numberOfIterations,
         mapperTasks, reducerTasks, localMerge, training, randomStartGamma, resume, informedPrior,
         modelPath, snapshotIndex, mapperCombiner, truncateBeta);
   }
 
-  private int run(String inputPath, String outputPath, int numberOfTopics, int numberOfTerms,
+  private int run(String inputPath, String outputPath, int numberOfTopics, int numberOfTypes,
       int numberOfIterations, int mapperTasks, int reducerTasks, boolean localMerge,
       boolean training, boolean randomStartGamma, boolean resume, Path informedPrior,
       String modelPath, int snapshotIndex, boolean mapperCombiner, boolean truncateBeta)
       throws Exception {
 
     sLogger.info("Tool: " + VariationalInference.class.getSimpleName());
-
     sLogger.info(" - input path: " + inputPath);
     sLogger.info(" - output path: " + outputPath);
     sLogger.info(" - number of topics: " + numberOfTopics);
-    sLogger.info(" - number of terms: " + numberOfTerms);
+    sLogger.info(" - number of types: " + numberOfTypes);
     sLogger.info(" - number of iterations: " + numberOfIterations);
     sLogger.info(" - number of mappers: " + mapperTasks);
     sLogger.info(" - number of reducers: " + reducerTasks);
@@ -357,28 +349,33 @@ public class VariationalInference extends Configured implements Tool, Settings {
     }
 
     Path inputDir = new Path(inputPath);
-    Path tempDir = new Path(outputPath + Settings.TEMP);
+    Path tempDir = new Path(outputPath + Settings.TEMP + FileMerger.generateRandomString());
+
+    // delete the output directory if it exists already
+    fs.delete(tempDir, true);
 
     Path alphaDir = null;
     Path betaDir = null;
+    Path gammaDir = null;
 
     Path documentGlobDir = new Path(tempDir.toString() + Path.SEPARATOR + Settings.GAMMA
-        + Settings.STAR);
+        + Settings.UNDER_SCORE + Settings.GAMMA + Settings.DASH + Settings.STAR);
 
     // these parameters are NOT used at all in the case of testing mode
     Path alphaSufficientStatisticsDir = new Path(tempDir.toString() + Path.SEPARATOR + "part-00000");
-    String betaGlobDir = tempDir.toString() + Path.SEPARATOR + Settings.BETA + Settings.STAR;
+    String betaGlobDir = tempDir.toString() + Path.SEPARATOR + Settings.BETA + Settings.UNDER_SCORE
+        + Settings.BETA + Settings.DASH + Settings.STAR;
 
     SequenceFile.Reader sequenceFileReader = null;
     SequenceFile.Writer sequenceFileWriter = null;
 
-    String betaPath = outputPath + Settings.BETA;
-    String alphaPath = outputPath + Settings.ALPHA;
+    String betaPath = outputPath + Settings.BETA + Settings.DASH;
+    String alphaPath = outputPath + Settings.ALPHA + Settings.DASH;
     double[] alphaVector = new double[numberOfTopics];
 
     if (!training) {
-      alphaDir = new Path(modelPath + Settings.ALPHA + snapshotIndex);
-      betaDir = new Path(modelPath + Settings.BETA + snapshotIndex);
+      alphaDir = new Path(modelPath + Settings.ALPHA + Settings.DASH + snapshotIndex);
+      betaDir = new Path(modelPath + Settings.BETA + Settings.DASH + snapshotIndex);
     } else {
       if (!resume) {
         // initialize alpha vector randomly - if it doesn't already exist
@@ -397,7 +394,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
         alphaDir = new Path(alphaPath + snapshotIndex);
         betaDir = new Path(betaPath + snapshotIndex);
 
-        inputDir = new Path(outputPath + Settings.GAMMA + snapshotIndex);
+        inputDir = new Path(outputPath + Settings.GAMMA + Settings.DASH + snapshotIndex);
       }
     }
 
@@ -435,7 +432,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
           Settings.MAXIMUM_GAMMA_ITERATION);
 
       conf.setInt(Settings.PROPERTY_PREFIX + "model.topics", numberOfTopics);
-      conf.setInt(Settings.PROPERTY_PREFIX + "corpus.terms", numberOfTerms);
+      conf.setInt(Settings.PROPERTY_PREFIX + "corpus.types", numberOfTypes);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.train", training);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.random.start", randomStartGamma);
       conf.setBoolean(Settings.PROPERTY_PREFIX + "model.informed.prior", informedPrior != null);
@@ -483,120 +480,134 @@ public class VariationalInference extends Configured implements Tool, Settings {
       // suppress the empty part files
       conf.setInputFormat(SequenceFileInputFormat.class);
       conf.setOutputFormat(SequenceFileOutputFormat.class);
+      // conf.setOutputFormat(NullOutputFormat.class);
 
-      // delete the output directory if it exists already
-      fs.delete(tempDir, true);
-
-      long startTime = System.currentTimeMillis();
-      RunningJob job = JobClient.runJob(conf);
-      sLogger.info("Iteration " + (iterationCount + 1) + " finished in "
-          + (System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
-
-      Counters counters = job.getCounters();
-      double logLikelihood = -counters.findCounter(ParameterCounter.LOG_LIKELIHOOD).getCounter()
-          * 1.0 / Settings.DEFAULT_COUNTER_SCALE;
-      sLogger.info("Log likelihood of the model is: " + logLikelihood);
-
-      numberOfDocuments = (int) counters.findCounter(ParameterCounter.TOTAL_DOC).getCounter();
-      sLogger.info("Total number of documents is: " + numberOfDocuments);
-      numberOfTerms = (int) (counters.findCounter(ParameterCounter.TOTAL_TERM).getCounter() / numberOfTopics);
-      sLogger.info("Total number of term is: " + numberOfTerms);
-
-      double configurationTime = counters.findCounter(ParameterCounter.CONFIG_TIME).getCounter()
-          * 1.0 / numberOfDocuments;
-      sLogger.info("Average time elapsed for mapper configuration (ms): " + configurationTime);
-      double trainingTime = counters.findCounter(ParameterCounter.TRAINING_TIME).getCounter() * 1.0
-          / numberOfDocuments;
-      sLogger.info("Average time elapsed for processing a document (ms): " + trainingTime);
-
-      // break out of the loop if in testing mode
-      if (!training) {
-        break;
-      }
-
-      // merge gamma (for alpha update) first and move document to the correct directory
-      if (!randomStartGamma) {
-        // TODO: resume got error
-        if (iterationCount != 0) {
-          // remove old gamma and document output
-          fs.delete(inputDir, true);
-        }
-        inputDir = new Path(outputPath + Settings.GAMMA + (iterationCount + 1));
-
-        fs.mkdirs(inputDir);
-        FileStatus[] fileStatus = fs.globStatus(documentGlobDir);
-        for (FileStatus file : fileStatus) {
-          Path newPath = new Path(inputDir.toString() + Path.SEPARATOR + file.getPath().getName());
-          fs.rename(file.getPath(), newPath);
-        }
-      }
-
-      // update alpha's
       try {
-        // load old alpha's into the system
-        sequenceFileReader = new SequenceFile.Reader(fs, alphaDir, conf);
-        alphaVector = importAlpha(sequenceFileReader, numberOfTopics);
-        sLogger.info("Successfully import old alpha vector from file " + alphaDir);
+        long startTime = System.currentTimeMillis();
+        RunningJob job = JobClient.runJob(conf);
+        sLogger.info("Iteration " + (iterationCount + 1) + " finished in "
+            + (System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
 
-        // load alpha sufficient statistics into the system
-        double[] alphaSufficientStatistics = null;
-        sequenceFileReader = new SequenceFile.Reader(fs, alphaSufficientStatisticsDir, conf);
-        alphaSufficientStatistics = importAlpha(sequenceFileReader, numberOfTopics);
-        sLogger.info("Successfully import alpha sufficient statistics tokens from file "
-            + alphaSufficientStatisticsDir);
+        Counters counters = job.getCounters();
+        double logLikelihood = -counters.findCounter(ParameterCounter.LOG_LIKELIHOOD).getCounter()
+            * 1.0 / Settings.DEFAULT_COUNTER_SCALE;
+        sLogger.info("Log likelihood of the model is: " + logLikelihood);
 
-        // update alpha
-        alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
-            alphaSufficientStatistics);
-        sLogger.info("Successfully update new alpha vector.");
+        numberOfDocuments = (int) counters.findCounter(ParameterCounter.TOTAL_DOCS).getCounter();
+        sLogger.info("Total number of documents is: " + numberOfDocuments);
+        numberOfTypes = (int) (counters.findCounter(ParameterCounter.TOTAL_TYPES).getCounter() / numberOfTopics);
+        sLogger.info("Total number of types is: " + numberOfTypes);
 
-        // output the new alpha's to the system
-        alphaDir = new Path(alphaPath + (iterationCount + 1));
-        sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
-            DoubleWritable.class);
-        exportAlpha(sequenceFileWriter, alphaVector);
-        sLogger.info("Successfully export new alpha vector to file " + alphaDir);
+        double configurationTime = counters.findCounter(ParameterCounter.CONFIG_TIME).getCounter()
+            * 1.0 / numberOfDocuments;
+        sLogger.info("Average time elapsed for mapper configuration (ms): " + configurationTime);
+        double trainingTime = counters.findCounter(ParameterCounter.TRAINING_TIME).getCounter()
+            * 1.0 / numberOfDocuments;
+        sLogger.info("Average time elapsed for processing a document (ms): " + trainingTime);
 
-        // remove all the alpha sufficient statistics
-        fs.deleteOnExit(alphaSufficientStatisticsDir);
+        // break out of the loop if in testing mode
+        if (!training) {
+          break;
+        }
+
+        // update alpha's
+        try {
+          // load old alpha's into the system
+          sequenceFileReader = new SequenceFile.Reader(fs, alphaDir, conf);
+          alphaVector = importAlpha(sequenceFileReader, numberOfTopics);
+          sLogger.info("Successfully import old alpha vector from file " + alphaDir);
+
+          // load alpha sufficient statistics into the system
+          double[] alphaSufficientStatistics = null;
+          sequenceFileReader = new SequenceFile.Reader(fs, alphaSufficientStatisticsDir, conf);
+          alphaSufficientStatistics = importAlpha(sequenceFileReader, numberOfTopics);
+          sLogger.info("Successfully import alpha sufficient statistics tokens from file "
+              + alphaSufficientStatisticsDir);
+
+          // update alpha
+          alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
+              alphaSufficientStatistics);
+          sLogger.info("Successfully update new alpha vector.");
+
+          // output the new alpha's to the system
+          alphaDir = new Path(alphaPath + (iterationCount + 1));
+          sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
+              DoubleWritable.class);
+          exportAlpha(sequenceFileWriter, alphaVector);
+          sLogger.info("Successfully export new alpha vector to file " + alphaDir);
+
+          // remove all the alpha sufficient statistics
+          fs.deleteOnExit(alphaSufficientStatisticsDir);
+        } finally {
+          IOUtils.closeStream(sequenceFileReader);
+          IOUtils.closeStream(sequenceFileWriter);
+        }
+
+        // merge beta's
+        // TODO: local merge doesn't compress data
+        if (localMerge) {
+          throw new IOException("Please disable local merge option...");
+          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+          // 0,
+          // PairOfIntFloat.class, HMapIDW.class, true, true);
+
+          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+          // 0,
+          // PairOfIntFloat.class, ProbDist.class, true, true);
+          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+          // 0,
+          // PairOfIntFloat.class, BloomMap.class, true, true);
+          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+          // 0,
+          // PairOfIntFloat.class, HashMap.class, true, true);
+        } else {
+          betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+              reducerTasks, PairOfIntFloat.class, HMapIDW.class, true, true);
+          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+          // reducerTasks, PairOfIntFloat.class, ProbDist.class, true, true);
+          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+          // reducerTasks, PairOfIntFloat.class, BloomMap.class, true, true);
+          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+          // reducerTasks, PairOfIntFloat.class, HashMap.class, true, true);
+        }
+
+        // merge gamma (for alpha update) first and move document to the correct directory
+        if (!randomStartGamma) {
+          gammaDir = inputDir;
+          inputDir = new Path(outputPath + Settings.GAMMA + Settings.DASH + (iterationCount + 1));
+
+          // TODO: technically, can rename the entire directory at this point of time, but found out
+          // there are a lot of "part-*" files left-over, and set the outputformat to
+          // NullOutputFormat does not resolve this problem, hence, need to rename them one-by-one.
+
+          // fs.rename(tempDir, inputDir);
+          fs.mkdirs(inputDir);
+          FileStatus[] fileStatus = fs.globStatus(documentGlobDir);
+          for (FileStatus file : fileStatus) {
+            Path newPath = new Path(inputDir.toString() + Path.SEPARATOR + file.getPath().getName());
+            fs.rename(file.getPath(), newPath);
+          }
+
+          if (iterationCount != 0) {
+            // remove old gamma and document output
+            fs.delete(gammaDir, true);
+          }
+        }
+
+        sLogger.info("Log likelihood after iteration " + (iterationCount + 1) + " is "
+            + logLikelihood);
+        if (Math.abs((lastLogLikelihood - logLikelihood) / lastLogLikelihood) <= Settings.DEFAULT_GLOBAL_CONVERGE_CRITERIA) {
+          sLogger.info("Model converged after " + (iterationCount + 1) + " iterations...");
+          break;
+        }
+        lastLogLikelihood = logLikelihood;
+
+        iterationCount++;
       } finally {
-        IOUtils.closeStream(sequenceFileReader);
-        IOUtils.closeStream(sequenceFileWriter);
+        // delete the output directory after job
+        fs.delete(tempDir, true);
       }
 
-      // merge beta's
-      // TODO: local merge doesn't compress data
-      if (localMerge) {
-        throw new IOException("Please disable local merge option...");
-        // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1), 0,
-        // PairOfIntFloat.class, HMapIDW.class, true, true);
-
-        // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1), 0,
-        // PairOfIntFloat.class, ProbDist.class, true, true);
-        // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1), 0,
-        // PairOfIntFloat.class, BloomMap.class, true, true);
-        // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1), 0,
-        // PairOfIntFloat.class, HashMap.class, true, true);
-      } else {
-        betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-            reducerTasks, PairOfIntFloat.class, HMapIDW.class, true, true);
-        // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-        // reducerTasks, PairOfIntFloat.class, ProbDist.class, true, true);
-        // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-        // reducerTasks, PairOfIntFloat.class, BloomMap.class, true, true);
-        // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-        // reducerTasks, PairOfIntFloat.class, HashMap.class, true, true);
-      }
-
-      sLogger.info("Log likelihood after iteration " + (iterationCount + 1) + " is "
-          + logLikelihood);
-      if (Math.abs((lastLogLikelihood - logLikelihood) / lastLogLikelihood) <= Settings.DEFAULT_GLOBAL_CONVERGE_CRITERIA) {
-        sLogger.info("Model converged after " + (iterationCount + 1) + " iterations...");
-        break;
-      }
-      lastLogLikelihood = logLikelihood;
-
-      iterationCount++;
     } while (iterationCount < numberOfIterations);
 
     return 0;

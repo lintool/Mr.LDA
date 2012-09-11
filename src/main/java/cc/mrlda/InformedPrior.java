@@ -40,8 +40,8 @@ public class InformedPrior extends Configured implements Tool {
   public static final String INFORMED_PRIOR_OPTION = "informedprior";
 
   // informed prior on beta matrix
-  public static final float DEFAULT_INFORMED_LOG_ETA = (float) Math.log(10.0);
-  public static final float DEFAULT_UNINFORMED_LOG_ETA = (float) Math.log(0.01);
+  public static final float DEFAULT_INFORMED_LOG_ETA = (float) Math.log(1000.0);
+  public static final float DEFAULT_UNINFORMED_LOG_ETA = (float) Math.log(0.001);
 
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
@@ -53,9 +53,9 @@ public class InformedPrior extends Configured implements Tool {
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("output file").create(Settings.OUTPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("term index file").create(ParseCorpus.INDEX));
+        .withDescription("type index file").create(ParseCorpus.INDEX));
 
-    String termIndex = null;
+    String typeIndex = null;
     String output = null;
     String input = null;
 
@@ -87,7 +87,7 @@ public class InformedPrior extends Configured implements Tool {
       }
 
       if (line.hasOption(ParseCorpus.INDEX)) {
-        termIndex = line.getOptionValue(ParseCorpus.INDEX);
+        typeIndex = line.getOptionValue(ParseCorpus.INDEX);
       } else {
         throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
             + " not initialized...");
@@ -109,9 +109,9 @@ public class InformedPrior extends Configured implements Tool {
     Preconditions.checkArgument(fs.exists(inputPath) && fs.isFile(inputPath),
         "Illegal input file...");
 
-    Path termIndexPath = new Path(termIndex);
-    Preconditions.checkArgument(fs.exists(termIndexPath) && fs.isFile(termIndexPath),
-        "Illegal term index file...");
+    Path typeIndexPath = new Path(typeIndex);
+    Preconditions.checkArgument(fs.exists(typeIndexPath) && fs.isFile(typeIndexPath),
+        "Illegal type index file...");
 
     Path outputPath = new Path(output);
     fs.delete(outputPath, true);
@@ -122,10 +122,10 @@ public class InformedPrior extends Configured implements Tool {
     fs.createNewFile(outputPath);
     try {
       bufferedReader = new BufferedReader(new InputStreamReader(fs.open(inputPath)));
-      sequenceFileReader = new SequenceFile.Reader(fs, termIndexPath, conf);
+      sequenceFileReader = new SequenceFile.Reader(fs, typeIndexPath, conf);
       sequenceFileWriter = new SequenceFile.Writer(fs, conf, outputPath, IntWritable.class,
           ArrayListOfIntsWritable.class);
-      exportTerms(bufferedReader, sequenceFileReader, sequenceFileWriter);
+      exportTypes(bufferedReader, sequenceFileReader, sequenceFileWriter);
       sLogger.info("Successfully index the informed prior to " + outputPath);
     } finally {
       bufferedReader.close();
@@ -136,10 +136,10 @@ public class InformedPrior extends Configured implements Tool {
     return 0;
   }
 
-  public static void exportTerms(BufferedReader bufferedReader,
+  public static void exportTypes(BufferedReader bufferedReader,
       SequenceFile.Reader sequenceFileReader, SequenceFile.Writer sequenceFileWriter)
       throws IOException {
-    Map<String, Integer> termIndex = ParseCorpus.importParameter(sequenceFileReader);
+    Map<String, Integer> typeIndex = ParseCorpus.importParameter(sequenceFileReader);
 
     IntWritable intWritable = new IntWritable();
     ArrayListOfIntsWritable arrayListOfIntsWritable = new ArrayListOfIntsWritable();
@@ -157,10 +157,10 @@ public class InformedPrior extends Configured implements Tool {
       stk = new StringTokenizer(line);
       while (stk.hasMoreTokens()) {
         temp = stk.nextToken();
-        if (termIndex.containsKey(temp)) {
-          arrayListOfIntsWritable.add(termIndex.get(temp));
+        if (typeIndex.containsKey(temp)) {
+          arrayListOfIntsWritable.add(typeIndex.get(temp));
         } else {
-          sLogger.info("How embarrassing! Term " + temp + " not found in the index file...");
+          sLogger.info("How embarrassing! Type " + temp + " not found in the index file...");
         }
       }
 
@@ -169,8 +169,8 @@ public class InformedPrior extends Configured implements Tool {
     }
   }
 
-  public static float getEta(int termID, Set<Integer> knownTerms) {
-    if (knownTerms != null && knownTerms.contains(termID)) {
+  public static float getEta(int typeID, Set<Integer> knownTypes) {
+    if (knownTypes != null && knownTypes.contains(typeID)) {
       return DEFAULT_INFORMED_LOG_ETA;
     }
     return DEFAULT_UNINFORMED_LOG_ETA;
@@ -184,7 +184,7 @@ public class InformedPrior extends Configured implements Tool {
     ArrayListOfIntsWritable arrayListOfInts = new ArrayListOfIntsWritable();
 
     while (sequenceFileReader.next(intWritable, arrayListOfInts)) {
-      Preconditions.checkArgument(intWritable.get() > 0, "Invalid eta prior for term "
+      Preconditions.checkArgument(intWritable.get() > 0, "Invalid eta prior for type "
           + intWritable.get() + "...");
 
       // topic is from 1 to K

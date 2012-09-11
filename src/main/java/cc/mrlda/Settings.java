@@ -26,12 +26,10 @@ public interface Settings {
   public static final char STAR = '*';
 
   public static final String TOPIC_OPTION = "topic";
-  public static final String TERM_OPTION = "term";
+  public static final String TYPE_OPTION = "type";
   public static final String ITERATION_OPTION = "iteration";
 
   public static final double DEFAULT_COUNTER_SCALE = 100;
-
-  //
 
   public static final String INFERENCE_MODE_OPTION = "test";
   public static final String RANDOM_START_GAMMA_OPTION = "randomstart";
@@ -52,10 +50,17 @@ public interface Settings {
   public static final int MAXIMUM_GAMMA_ITERATION = 100;
   public static final double DEFAULT_GLOBAL_CONVERGE_CRITERIA = 0.000001;
 
+  // set the minimum memory threshold, in bytes
+  public static final int MEMORY_THRESHOLD = 64 * 1024 * 1024;
+  public static final int TOP_WORDS_FOR_CACHING = 10000;
+  public static final String MAPPER_COMBINER_OPTION = "mappercombiner";
+
+  public static final double DEFAULT_LOG_ETA = Math.log(1e-100);
+
   /**
    * sub-interface must override this property
    */
-  static final String PROPERTY_PREFIX = Settings.class.getPackage() + "" + DOT;
+  static final String PROPERTY_PREFIX = Settings.class.getPackage().getName() + "" + DOT;
 
   // public static void exportSettings(SequenceFile.Writer sequenceFileWriter) {
   //

@@ -57,9 +57,9 @@ public class DisplayTopic extends Configured implements Tool {
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("input beta file").create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("term index file").create(ParseCorpus.INDEX));
+        .withDescription("type index file").create(ParseCorpus.INDEX));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
-        .withDescription("display top terms only (default - 10)").create(TOP_DISPLAY_OPTION));
+        .withDescription("display top types only (default - 10)").create(TOP_DISPLAY_OPTION));
 
     String betaString = null;
     String indexString = null;
@@ -115,10 +115,10 @@ public class DisplayTopic extends Configured implements Tool {
     try {
       IntWritable intWritable = new IntWritable();
       Text text = new Text();
-      Map<Integer, String> termIndex = new HashMap<Integer, String>();
+      Map<Integer, String> typeIndex = new HashMap<Integer, String>();
       sequenceFileReader = new SequenceFile.Reader(fs, indexPath, conf);
       while (sequenceFileReader.next(intWritable, text)) {
-        termIndex.put(intWritable.get(), text.toString());
+        typeIndex.put(intWritable.get(), text.toString());
       }
 
       PairOfIntFloat pairOfIntFloat = new PairOfIntFloat();
@@ -130,7 +130,7 @@ public class DisplayTopic extends Configured implements Tool {
         treeMap.clear();
 
         System.out.println("==============================");
-        System.out.println("Top ranked " + topDisplay + " terms for Topic "
+        System.out.println("Top ranked " + topDisplay + " types for Topic "
             + pairOfIntFloat.getLeftElement());
         System.out.println("==============================");
 
@@ -148,10 +148,10 @@ public class DisplayTopic extends Configured implements Tool {
         double temp2 = 0;
         while (itr2.hasNext()) {
           temp2 = itr2.next();
-          if (termIndex.containsKey(treeMap.get(temp2))) {
-            System.out.println(termIndex.get(treeMap.get(temp2)) + "\t\t" + -temp2);
+          if (typeIndex.containsKey(treeMap.get(temp2))) {
+            System.out.println(typeIndex.get(treeMap.get(temp2)) + "\t\t" + -temp2);
           } else {
-            System.out.println("How embarrassing! Term index not found...");
+            System.out.println("How embarrassing! Type index not found...");
           }
         }
       }

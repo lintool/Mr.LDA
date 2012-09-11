@@ -21,7 +21,7 @@ import cc.mrlda.VariationalInference.ParameterCounter;
 
 import com.google.common.base.Preconditions;
 
-import edu.umd.cloud9.io.map.HMapIFW;
+import edu.umd.cloud9.io.map.HMapIDW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.math.Gamma;
@@ -31,6 +31,9 @@ import edu.umd.cloud9.util.map.HMapIV;
 
 public class DocumentMapper extends MapReduceBase implements
     Mapper<IntWritable, Document, PairOfInts, DoubleWritable> {
+
+  // boolean approximateBeta = false;
+
   boolean mapperCombiner = false;
   HMapIV<double[]> totalPhi = null;
   double[] totalAlphaSufficientStatistics;
@@ -43,7 +46,7 @@ public class DocumentMapper extends MapReduceBase implements
   private static double[] alpha = null;
 
   private static int numberOfTopics = 0;
-  private static int numberOfTerms = Integer.MAX_VALUE;
+  private static int numberOfTypes = Integer.MAX_VALUE;
 
   private static int maximumGammaIteration = Settings.MAXIMUM_GAMMA_ITERATION;
 
@@ -58,19 +61,19 @@ public class DocumentMapper extends MapReduceBase implements
   private static MultipleOutputs multipleOutputs;
   private static OutputCollector<IntWritable, Document> outputDocument;
 
-  private double[] tempBeta = null;
+  private double[] tempLogBeta = null;
 
   private double[] tempGamma = null;
-  private double[] updateGamma = null;
+  private double[] updateLogGamma = null;
 
-  private HMapIV<double[]> phiTable = null;
+  private HMapIV<double[]> logPhiTable = null;
 
   private Iterator<Integer> itr = null;
 
   public void configure(JobConf conf) {
     configurationTime = System.currentTimeMillis();
 
-    numberOfTerms = conf.getInt(Settings.PROPERTY_PREFIX + "corpus.terms", Integer.MAX_VALUE);
+    numberOfTypes = conf.getInt(Settings.PROPERTY_PREFIX + "corpus.types", Integer.MAX_VALUE);
     numberOfTopics = conf.getInt(Settings.PROPERTY_PREFIX + "model.topics", 0);
     // Settings.DEFAULT_NUMBER_OF_TOPICS);
     maximumGammaIteration = conf.getInt(Settings.PROPERTY_PREFIX
@@ -80,14 +83,16 @@ public class DocumentMapper extends MapReduceBase implements
     randomStartGamma = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.random.start",
         Settings.RANDOM_START_GAMMA);
 
+    // approximateBeta = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", false);
+
     mapperCombiner = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.mapper.combiner", false);
     if (mapperCombiner) {
       totalPhi = new HMapIV<double[]>();
       totalAlphaSufficientStatistics = new double[numberOfTopics];
     }
 
-    updateGamma = new double[numberOfTopics];
-    phiTable = new HMapIV<double[]>();
+    updateLogGamma = new double[numberOfTopics];
+    logPhiTable = new HMapIV<double[]>();
 
     multipleOutputs = new MultipleOutputs(conf);
 
@@ -105,7 +110,9 @@ public class DocumentMapper extends MapReduceBase implements
             if (path.getName().startsWith(Settings.BETA)) {
               // TODO: check whether seeded beta is valid, i.e., a true probability distribution
               Preconditions.checkArgument(beta == null, "Beta matrix was initialized already...");
-              beta = importBeta(sequenceFileReader, numberOfTopics, numberOfTerms);
+              // beta = importBeta(sequenceFileReader, numberOfTopics, numberOfTerms,
+              // approximateBeta);
+              beta = importBeta(sequenceFileReader, numberOfTopics, numberOfTypes);
             } else if (path.getName().startsWith(Settings.ALPHA)) {
               Preconditions.checkArgument(alpha == null, "Alpha vector was initialized already...");
 
@@ -168,7 +175,7 @@ public class DocumentMapper extends MapReduceBase implements
   public void map(IntWritable key, Document value,
       OutputCollector<PairOfInts, DoubleWritable> output, Reporter reporter) throws IOException {
     reporter.incrCounter(ParameterCounter.CONFIG_TIME, configurationTime);
-    reporter.incrCounter(ParameterCounter.TOTAL_DOC, 1);
+    reporter.incrCounter(ParameterCounter.TOTAL_DOCS, 1);
     trainingTime = System.currentTimeMillis();
 
     double likelihoodPhi = 0;
@@ -181,11 +188,11 @@ public class DocumentMapper extends MapReduceBase implements
     } else {
       tempGamma = new double[numberOfTopics];
       for (int i = 0; i < numberOfTopics; i++) {
-        tempGamma[i] = alpha[i] + 1.0f * value.getNumberOfWords() / numberOfTopics;
+        tempGamma[i] = alpha[i] + 1.0f * value.getNumberOfTerms() / numberOfTopics;
       }
     }
 
-    double[] phi = null;// new double[numberOfTopics];
+    double[] logPhi = null;// new double[numberOfTopics];
     // boolean keepGoing = true;
     // be careful when adjust this initial value
     int gammaUpdateIterationCount = 1;
@@ -196,31 +203,32 @@ public class DocumentMapper extends MapReduceBase implements
 
       for (int i = 0; i < numberOfTopics; i++) {
         tempGamma[i] = Gamma.digamma(tempGamma[i]);
-        updateGamma[i] = Math.log(alpha[i]);
+        updateLogGamma[i] = Math.log(alpha[i]);
+        // System.out.println("digamma is " + i + "\t" + tempGamma[i]);
       }
 
       // TODO: add in null check for content
       itr = content.keySet().iterator();
       while (itr.hasNext()) {
-        int termID = itr.next();
-        // acquire the corresponding beta vector for this term
-        if (phiTable.containsKey(termID)) {
+        int typeID = itr.next();
+        // acquire the corresponding beta vector for this type
+        if (logPhiTable.containsKey(typeID)) {
           // reuse existing object
-          phi = phiTable.get(termID);
+          logPhi = logPhiTable.get(typeID);
         } else {
-          phi = new double[numberOfTopics];
-          phiTable.put(termID, phi);
+          logPhi = new double[numberOfTopics];
+          logPhiTable.put(typeID, logPhi);
         }
 
-        int termCounts = content.get(termID);
-        tempBeta = retrieveBeta(numberOfTopics, beta, termID, numberOfTerms);
+        int typeCounts = content.get(typeID);
+        tempLogBeta = retrieveBeta(numberOfTopics, beta, typeID, numberOfTypes);
 
-        likelihoodPhi += updatePhi(numberOfTopics, termCounts, tempBeta, tempGamma, phi,
-            updateGamma);
+        likelihoodPhi += updatePhi(numberOfTopics, typeCounts, tempLogBeta, tempGamma, logPhi,
+            updateLogGamma);
       }
 
       for (int i = 0; i < numberOfTopics; i++) {
-        tempGamma[i] = Math.exp(updateGamma[i]);
+        tempGamma[i] = Math.exp(updateLogGamma[i]);
       }
 
       gammaUpdateIterationCount++;
@@ -251,13 +259,13 @@ public class DocumentMapper extends MapReduceBase implements
         if (Runtime.getRuntime().freeMemory() < VariationalInference.MEMORY_THRESHOLD) {
           itr = totalPhi.keySet().iterator();
           while (itr.hasNext()) {
-            int termID = itr.next();
-            phi = totalPhi.get(termID);
+            int typeID = itr.next();
+            logPhi = totalPhi.get(typeID);
             for (int i = 0; i < numberOfTopics; i++) {
-              outputValue.set(phi[i]);
+              outputValue.set(logPhi[i]);
 
               // a *positive* topic index indicates the output is a phi values
-              outputKey.set(i + 1, termID);
+              outputKey.set(i + 1, typeID);
               output.collect(outputKey, outputValue);
             }
           }
@@ -275,24 +283,24 @@ public class DocumentMapper extends MapReduceBase implements
 
         itr = content.keySet().iterator();
         while (itr.hasNext()) {
-          int termID = itr.next();
-          if (termID < 10000) {
-            if (totalPhi.containsKey(termID)) {
-              phi = phiTable.get(termID);
-              tempBeta = totalPhi.get(termID);
+          int typeID = itr.next();
+          if (typeID < Settings.TOP_WORDS_FOR_CACHING) {
+            if (totalPhi.containsKey(typeID)) {
+              logPhi = logPhiTable.get(typeID);
+              tempLogBeta = totalPhi.get(typeID);
               for (int i = 0; i < numberOfTopics; i++) {
-                tempBeta[i] = LogMath.add(phi[i], tempBeta[i]);
+                tempLogBeta[i] = LogMath.add(logPhi[i], tempLogBeta[i]);
               }
             } else {
-              totalPhi.put(termID, phiTable.get(termID));
+              totalPhi.put(typeID, logPhiTable.get(typeID));
             }
           } else {
-            phi = phiTable.get(termID);
+            logPhi = logPhiTable.get(typeID);
             for (int i = 0; i < numberOfTopics; i++) {
-              outputValue.set(phi[i]);
+              outputValue.set(logPhi[i]);
 
               // a *positive* topic index indicates the output is a phi values
-              outputKey.set(i + 1, termID);
+              outputKey.set(i + 1, typeID);
               output.collect(outputKey, outputValue);
             }
           }
@@ -306,14 +314,14 @@ public class DocumentMapper extends MapReduceBase implements
       if (learning) {
         itr = content.keySet().iterator();
         while (itr.hasNext()) {
-          int termID = itr.next();
+          int typeID = itr.next();
           // only get the phi's in of current document
-          phi = phiTable.get(termID);
+          logPhi = logPhiTable.get(typeID);
           for (int i = 0; i < numberOfTopics; i++) {
-            outputValue.set(phi[i]);
+            outputValue.set(logPhi[i]);
 
             // a *positive* topic index indicates the output is a phi values
-            outputKey.set(i + 1, termID);
+            outputKey.set(i + 1, typeID);
             output.collect(outputKey, outputValue);
           }
         }
@@ -346,13 +354,13 @@ public class DocumentMapper extends MapReduceBase implements
       double[] phi = null;
       itr = totalPhi.keySet().iterator();
       while (itr.hasNext()) {
-        int termID = itr.next();
-        phi = totalPhi.get(termID);
+        int typeID = itr.next();
+        phi = totalPhi.get(typeID);
         for (int i = 0; i < numberOfTopics; i++) {
           outputValue.set(phi[i]);
 
           // a *positive* topic index indicates the output is a phi values
-          outputKey.set(i + 1, termID);
+          outputKey.set(i + 1, typeID);
           outputCollector.collect(outputKey, outputValue);
         }
       }
@@ -372,127 +380,146 @@ public class DocumentMapper extends MapReduceBase implements
   /**
    * @param numberOfTopics number of topics defined by the current latent Dirichlet allocation
    *        model.
-   * @param termCounts the term counts associated with the term
-   * @param beta the beta vector
+   * @param typeCounts the type counts associated with the type
+   * @param logBeta the beta vector
    * @param digammaGamma the gamma vector
-   * @param phi the phi vector, take note that phi vector will be updated accordingly.
-   * @param phiSum a vector recording the sum of all the phi's over all the terms, seeded from the
+   * @param logPhi the phi vector, take note that phi vector will be updated accordingly.
+   * @param phiSum a vector recording the sum of all the phi's over all the types, seeded from the
    *        caller program, take note that phiSum vector will be updated accordingly.
-   * @param phiWeightSum a vector recording the weighted sum of all the phi's over all the terms,
+   * @param phiWeightSum a vector recording the weighted sum of all the phi's over all the types,
    *        seeded from the caller program, take note that phiWeightSum vector will be updated
    *        accordingly.
    * @param emptyPhiTable a boolean value indicates whether the phiSum and phiWeightSum vector will
    *        be reset, they will be reset if True, and not. otherwise
-   * @param updateGamma the updated gamma vector, may or may not seeded from the caller program,
+   * @param updateLogGamma the updated gamma vector, may or may not seeded from the caller program,
    *        take note that updateGamma vector will be updated accordingly
    * @return
    */
-  public static double updatePhi(int numberOfTopics, int termCounts, double[] beta,
-      double[] digammaGamma, double[] phi, double[] updateGamma) {
+  public static double updatePhi(int numberOfTopics, int typeCounts, double[] logBeta,
+      double[] digammaGamma, double[] logPhi, double[] updateLogGamma) {
     double convergePhi = 0;
 
     // initialize the normalize factor and the phi vector
     // phi is initialized in log scale
-    phi[0] = (beta[0] + digammaGamma[0]);
-    double normalizeFactor = phi[0];
+    logPhi[0] = (logBeta[0] + digammaGamma[0]);
+    double normalizeFactor = logPhi[0];
 
     // compute the K-dimensional vector phi iteratively
     for (int i = 1; i < numberOfTopics; i++) {
-      phi[i] = (beta[i] + digammaGamma[i]);
-      normalizeFactor = LogMath.add(normalizeFactor, phi[i]);
+      logPhi[i] = (logBeta[i] + digammaGamma[i]);
+      normalizeFactor = LogMath.add(normalizeFactor, logPhi[i]);
     }
 
     for (int i = 0; i < numberOfTopics; i++) {
       // normalize the K-dimensional vector phi scale the
-      // K-dimensional vector phi with the term count
-      phi[i] -= normalizeFactor;
-      convergePhi += termCounts * Math.exp(phi[i]) * (beta[i] - phi[i]);
-      phi[i] += Math.log(termCounts);
+      // K-dimensional vector phi with the type count
+      logPhi[i] -= normalizeFactor;
+      convergePhi += typeCounts * Math.exp(logPhi[i]) * (logBeta[i] - logPhi[i]);
+      logPhi[i] += Math.log(typeCounts);
 
       // update the K-dimensional vector gamma with phi
-      updateGamma[i] = LogMath.add(updateGamma[i], phi[i]);
+      updateLogGamma[i] = LogMath.add(updateLogGamma[i], logPhi[i]);
     }
 
     return convergePhi;
   }
 
   /**
-   * Retrieve the beta array given the beta map and term index. If {@code beta} is null or
-   * {@code termID} was not found in {@code beta}, this method will pop a message to
+   * Retrieve the beta array given the beta map and type index. If {@code beta} is null or
+   * {@code typeID} was not found in {@code beta}, this method will pop a message to
    * {@link System.out} and initialize it to avoid duplicate initialization in the future.
    * 
    * @param numberOfTopics number of topics defined by the current latent Dirichlet allocation
    *        model.
    * @param beta a {@link HMapIV<double[]>} object stores the beta matrix, the hash map is keyed by
-   *        term index and valued by a corresponding double array
-   * @param termID term index
-   * @param numberOfTerms size of vocabulary in the whole corpus, used to initialize beta of the
-   *        unloaded or non-initialized terms.
-   * @return a double array of size {@link numberOfTopics} that stores the beta value of term index
+   *        type index and valued by a corresponding double array
+   * @param typeID type index
+   * @param numberOfTypes size of vocabulary in the whole corpus, used to initialize beta of the
+   *        unloaded or non-initialized types.
+   * @return a double array of size {@link numberOfTopics} that stores the beta value of type index
    *         in log scale.
    */
-  public static double[] retrieveBeta(int numberOfTopics, HMapIV<double[]> beta, int termID,
-      int numberOfTerms) {
+  public static double[] retrieveBeta(int numberOfTopics, HMapIV<double[]> beta, int typeID,
+      int numberOfTypes) {
     Preconditions.checkArgument(beta != null, "Beta matrix was not properly initialized...");
 
-    if (!beta.containsKey(termID)) {
-      System.out.println("Term " + termID + " not found in the corresponding beta matrix...");
+    if (!beta.containsKey(typeID)) {
+      System.out.println("Type " + typeID + " not found in the corresponding beta matrix...");
 
       double[] tempBeta = new double[numberOfTopics];
       for (int i = 0; i < numberOfTopics; i++) {
         // beta is initialized in log scale
-        tempBeta[i] = Math.log(2 * Math.random() / numberOfTerms + Math.random());
+        tempBeta[i] = Math.log(2 * Math.random() / numberOfTypes + Math.random());
         // tempBeta[i] = Math.log(1.0 / numberOfTerms + Math.random());
       }
-      beta.put(termID, tempBeta);
+      beta.put(typeID, tempBeta);
     }
 
-    return beta.get(termID);
+    return beta.get(typeID);
   }
 
   /**
    * 
    * @param sequenceFileReader
    * @param numberOfTopics
-   * @param numberOfTerms
+   * @param numberOfTypes
    * @return
    * @throws IOException
    */
+  // public static HMapIV<double[]> importBeta(SequenceFile.Reader sequenceFileReader,
+  // int numberOfTopics, int numberOfTerms, boolean approximateBeta) throws IOException {
   public static HMapIV<double[]> importBeta(SequenceFile.Reader sequenceFileReader,
-      int numberOfTopics, int numberOfTerms) throws IOException {
+      int numberOfTopics, int numberOfTypes) throws IOException {
     HMapIV<double[]> beta = new HMapIV<double[]>();
 
     PairOfIntFloat pairOfIntFloat = new PairOfIntFloat();
-    HMapIFW hMapIFW = new HMapIFW();
 
-    while (sequenceFileReader.next(pairOfIntFloat, hMapIFW)) {
+    HMapIDW hashMap = new HMapIDW();
+    // HashMap hashMap = new HashMap();
+
+    // ProbDist hashMap = null;
+    // if (!approximateBeta) {
+    // hashMap = new HashMap();
+    // } else {
+    // hashMap = new BloomMap();
+    // }
+
+    while (sequenceFileReader.next(pairOfIntFloat, hashMap)) {
       Preconditions.checkArgument(
           pairOfIntFloat.getLeftElement() > 0 && pairOfIntFloat.getLeftElement() <= numberOfTopics,
-          "Invalid beta vector for term " + pairOfIntFloat.getLeftElement() + "...");
+          "Invalid beta vector for type " + pairOfIntFloat.getLeftElement() + "...");
 
       // topic is from 1 to K
       int topicIndex = pairOfIntFloat.getLeftElement() - 1;
-      double normalizer = LogMath.add(pairOfIntFloat.getRightElement(),
-          VariationalInference.DEFAULT_ETA + Math.log(numberOfTerms));
+      double logNormalizer = pairOfIntFloat.getRightElement();
+      // double logNormalizer = Math.log(pairOfIntFloat.getRightElement());
+      // double logNormalizer = Math.log(hashMap.getNormalizeFactor());
 
-      Iterator<Integer> itr = hMapIFW.keySet().iterator();
+      logNormalizer = LogMath.add(pairOfIntFloat.getRightElement(),
+          Settings.DEFAULT_LOG_ETA + Math.log(numberOfTypes));
+
+      Iterator<Integer> itr = hashMap.keySet().iterator();
       while (itr.hasNext()) {
-        int termIndex = itr.next();
-        double betaValue = hMapIFW.get(termIndex);
+        int typeIndex = itr.next();
+        double logBetaValue = hashMap.get(typeIndex);
+        // double logBetaValue = Math.log(hashMap.get(termIndex));
 
-        betaValue -= normalizer;
+        logBetaValue -= logNormalizer;
 
-        if (!beta.containsKey(termIndex)) {
+        if (!beta.containsKey(typeIndex)) {
           double[] vector = new double[numberOfTopics];
           // this introduces some normalization error into the system, since beta might not be a
           // valid probability distribution anymore, normalizer may exclude some of those terms
           for (int i = 0; i < vector.length; i++) {
-            vector[i] = VariationalInference.DEFAULT_ETA;
+            vector[i] = VariationalInference.DEFAULT_LOG_ETA;
           }
-          vector[topicIndex] = LogMath.add(betaValue, vector[topicIndex]);
-          beta.put(termIndex, vector);
+          vector[topicIndex] = LogMath.add(logBetaValue, vector[topicIndex]);
+          // vector[topicIndex] = betaValue;
+          beta.put(typeIndex, vector);
         } else {
-          beta.get(termIndex)[topicIndex] = LogMath.add(betaValue, beta.get(termIndex)[topicIndex]);
+          // beta.get(termIndex)[topicIndex] = betaValue;
+          beta.get(typeIndex)[topicIndex] = LogMath.add(logBetaValue,
+              beta.get(typeIndex)[topicIndex]);
         }
       }
     }
