@@ -2,9 +2,7 @@ package cc.mrlda;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.Map.Entry;
 import java.util.Set;
-import java.util.TreeMap;
 
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
@@ -24,7 +22,7 @@ import cc.mrlda.VariationalInference.ParameterCounter;
 
 import com.google.common.base.Preconditions;
 
-import edu.umd.cloud9.io.map.HMapIFW;
+import edu.umd.cloud9.io.map.HMapIDW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.math.LogMath;
@@ -32,34 +30,55 @@ import edu.umd.cloud9.util.map.HMapIV;
 
 public class TermReducer extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, IntWritable, DoubleWritable> {
-  boolean truncateBeta = false;
-  // double truncationThreshold = Math.log(0.001);
-  int truncationSize = 10000;
-  TreeMap<Double, Integer> treeMap = new TreeMap<Double, Integer>();
-  Iterator<Entry<Double, Integer>> itr = null;
+  // boolean approximateBeta = false;
+
+  // boolean truncateBeta = false;
+  // // double truncationThreshold = Math.log(0.001);
+  // int truncationSize = 10000;
+  // TreeMap<Double, Integer> treeMap = new TreeMap<Double, Integer>();
+  // Iterator<Entry<Double, Integer>> itr = null;
 
   private static HMapIV<Set<Integer>> lambdaMap = null;
 
   private static boolean learning = Settings.LEARNING_MODE;
+  // private static int numberOfTerms = 0;
 
   private int topicIndex = 0;
   private double normalizeFactor = 0;
 
   private MultipleOutputs multipleOutputs;
-  private OutputCollector<PairOfIntFloat, HMapIFW> outputBeta;
+  private OutputCollector<PairOfIntFloat, HMapIDW> outputBeta;
+  // private OutputCollector<PairOfIntFloat, ProbDist> outputBeta;
+  // private OutputCollector<PairOfIntFloat, HashMap> outputBeta;
+  // private OutputCollector<PairOfIntFloat, BloomMap> outputBeta;
 
   private IntWritable intWritable = new IntWritable();
   private DoubleWritable doubleWritable = new DoubleWritable();
 
   private PairOfIntFloat outputKey = new PairOfIntFloat();
-  private HMapIFW outputValue = new HMapIFW();
+
+  // private HashMap outputValue = null;
+  // private BloomMap outputValue = null;
+  // private ProbDist outputValue = null;
+  private HMapIDW outputValue = null;
 
   public void configure(JobConf conf) {
     multipleOutputs = new MultipleOutputs(conf);
 
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
+    // numberOfTerms = conf.getInt(Settings.PROPERTY_PREFIX + "corpus.types", Integer.MAX_VALUE);
 
-    truncateBeta = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", false);
+    // truncateBeta = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", false);
+
+    // outputValue = new HashMap();
+    outputValue = new HMapIDW();
+
+    // approximateBeta = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", false);
+    // if (!approximateBeta) {
+    // outputValue = new HashMap();
+    // } else {
+    // outputValue = new BloomMap(numberOfTerms * 100, 3, Hash.JENKINS_HASH);
+    // }
 
     boolean informedPrior = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.informed.prior",
         false);
@@ -116,6 +135,7 @@ public class TermReducer extends MapReduceBase implements
 
   public void reduce(PairOfInts key, Iterator<DoubleWritable> values,
       OutputCollector<IntWritable, DoubleWritable> output, Reporter reporter) throws IOException {
+    // if this value is the sufficient statistics for alpha updating
     if (key.getLeftElement() == 0) {
       double sum = values.next().get();
       while (values.hasNext()) {
@@ -134,16 +154,16 @@ public class TermReducer extends MapReduceBase implements
 
     // I would be very surprised to get here...
     Preconditions.checkArgument(learning, "Invalid key from Mapper");
-    reporter.incrCounter(ParameterCounter.TOTAL_TERM, 1);
+    reporter.incrCounter(ParameterCounter.TOTAL_TYPES, 1);
 
-    double phiValue = values.next().get();
+    double logPhiValue = values.next().get();
     while (values.hasNext()) {
-      phiValue = LogMath.add(phiValue, values.next().get());
+      logPhiValue = LogMath.add(logPhiValue, values.next().get());
     }
 
     if (lambdaMap != null) {
-      phiValue = LogMath.add(
-          InformedPrior.getEta(key.getRightElement(), lambdaMap.get(topicIndex)), phiValue);
+      logPhiValue = LogMath.add(
+          InformedPrior.getEta(key.getRightElement(), lambdaMap.get(topicIndex)), logPhiValue);
     }
 
     if (topicIndex != key.getLeftElement()) {
@@ -151,69 +171,73 @@ public class TermReducer extends MapReduceBase implements
         outputBeta = multipleOutputs.getCollector(Settings.BETA, Settings.BETA, reporter);
       } else {
         outputKey.set(topicIndex, (float) normalizeFactor);
+        // outputKey.set(topicIndex, (float) Math.exp(normalizeFactor));
 
-        if (truncateBeta) {
-          itr = treeMap.entrySet().iterator();
-          Entry<Double, Integer> temp = null;
-          outputValue.clear();
-          while (itr.hasNext()) {
-            temp = itr.next();
-            outputValue.put(temp.getValue(), temp.getKey().floatValue());
-          }
-        }
+        // if (truncateBeta) {
+        // itr = treeMap.entrySet().iterator();
+        // Entry<Double, Integer> temp = null;
+        // outputValue.clear();
+        // while (itr.hasNext()) {
+        // temp = itr.next();
+        // outputValue.put(temp.getValue(), temp.getKey());
+        // }
+        // }
 
         outputBeta.collect(outputKey, outputValue);
       }
 
       topicIndex = key.getLeftElement();
-      normalizeFactor = phiValue;
-      if (truncateBeta) {
-        treeMap.clear();
-        treeMap.put(phiValue, key.getRightElement());
-      } else {
-        outputValue.clear();
-        outputValue.put(key.getRightElement(), (float) phiValue);
-      }
+      normalizeFactor = logPhiValue;
+      // if (truncateBeta) {
+      // treeMap.clear();
+      // treeMap.put(phiValue, key.getRightElement());
+      // } else {
+      outputValue.clear();
+      outputValue.put(key.getRightElement(), logPhiValue);
+      // outputValue.put(key.getRightElement(), Math.exp(phiValue));
+      // }
     } else {
-      if (truncateBeta) {
-        if (treeMap.size() >= truncationSize) {
-          if (treeMap.firstKey() < phiValue) {
-            normalizeFactor = Math.log(Math.exp(normalizeFactor) - Math.exp(treeMap.firstKey()));
-            treeMap.remove(treeMap.firstKey());
-
-            treeMap.put(phiValue, key.getRightElement());
-            normalizeFactor = LogMath.add(normalizeFactor, phiValue);
-          }
-        } else {
-          treeMap.put(phiValue, key.getRightElement());
-          normalizeFactor = LogMath.add(normalizeFactor, phiValue);
-        }
-      } else {
-        normalizeFactor = LogMath.add(normalizeFactor, phiValue);
-        outputValue.put(key.getRightElement(), (float) phiValue);
-      }
+      // if (truncateBeta) {
+      // if (treeMap.size() >= truncationSize) {
+      // if (treeMap.firstKey() < phiValue) {
+      // normalizeFactor = Math.log(Math.exp(normalizeFactor) - Math.exp(treeMap.firstKey()));
+      // treeMap.remove(treeMap.firstKey());
+      //
+      // treeMap.put(phiValue, key.getRightElement());
+      // normalizeFactor = LogMath.add(normalizeFactor, phiValue);
+      // }
+      // } else {
+      // treeMap.put(phiValue, key.getRightElement());
+      // normalizeFactor = LogMath.add(normalizeFactor, phiValue);
+      // }
+      // } else {
+      normalizeFactor = LogMath.add(normalizeFactor, logPhiValue);
+      outputValue.put(key.getRightElement(), logPhiValue);
+      // outputValue.put(key.getRightElement(), Math.exp(phiValue));
+      // }
     }
   }
 
   public void close() throws IOException {
-    if (truncateBeta) {
-      if (!treeMap.isEmpty()) {
-        outputKey.set(topicIndex, (float) normalizeFactor);
-        itr = treeMap.entrySet().iterator();
-        Entry<Double, Integer> temp = null;
-        outputValue.clear();
-        while (itr.hasNext()) {
-          temp = itr.next();
-          outputValue.put(temp.getValue(), temp.getKey().floatValue());
-        }
-        outputBeta.collect(outputKey, outputValue);
-      }
-    } else {
-      if (!outputValue.isEmpty()) {
-        outputKey.set(topicIndex, (float) normalizeFactor);
-        outputBeta.collect(outputKey, outputValue);
-      }
+    // if (truncateBeta) {
+    // if (!treeMap.isEmpty()) {
+    // outputKey.set(topicIndex, (float) normalizeFactor);
+    // itr = treeMap.entrySet().iterator();
+    // Entry<Double, Integer> temp = null;
+    // outputValue.clear();
+    // while (itr.hasNext()) {
+    // temp = itr.next();
+    // outputValue.put(temp.getValue(), temp.getKey().floatValue());
+    // }
+    // outputBeta.collect(outputKey, outputValue);
+    // }
+    // } else {
+    if (!outputValue.isEmpty()) {
+      // outputKey.set(topicIndex, (float) Math.exp(normalizeFactor));
+      outputKey.set(topicIndex, (float) normalizeFactor);
+      outputBeta.collect(outputKey, outputValue);
     }
+    // }
     multipleOutputs.close();
   }
 }
