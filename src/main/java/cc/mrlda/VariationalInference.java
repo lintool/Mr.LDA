@@ -42,7 +42,7 @@ import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.math.Gamma;
 
-public class VariationalInference extends Configured implements Tool, Settings {
+public class VariationalInference extends Configured implements Tool {
   public static final float DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD = 0.000001f;
   public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION = 1000;
 
@@ -116,8 +116,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
     options.addOption(Settings.RANDOM_START_GAMMA_OPTION, false,
         "start gamma from random point every iteration");
 
-    options.addOption(VariationalInference.MAPPER_COMBINER_OPTION, false,
-        "enable in-mapper-combiner");
+    options.addOption(Settings.MAPPER_COMBINER_OPTION, false, "enable in-mapper-combiner");
 
     options.addOption(OptionBuilder
         .withArgName(Settings.INTEGER_INDICATOR)
@@ -221,11 +220,11 @@ public class VariationalInference extends Configured implements Tool, Settings {
         }
       }
 
-      if (line.hasOption(VariationalInference.MAPPER_COMBINER_OPTION)) {
+      if (line.hasOption(Settings.MAPPER_COMBINER_OPTION)) {
         if (training) {
           mapperCombiner = true;
         } else {
-          sLogger.info("Warning: " + VariationalInference.MAPPER_COMBINER_OPTION
+          sLogger.info("Warning: " + Settings.MAPPER_COMBINER_OPTION
               + " ignored in testing mode...");
         }
       }

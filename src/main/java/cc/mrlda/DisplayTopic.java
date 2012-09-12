@@ -38,7 +38,6 @@ public class DisplayTopic extends Configured implements Tool {
     Options options = new Options();
 
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
-    options.addOption("raw",false,"Do not use term index - output raw ids");
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("input beta file").create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
@@ -49,8 +48,7 @@ public class DisplayTopic extends Configured implements Tool {
     String betaString = null;
     String indexString = null;
     int topDisplay = TOP_DISPLAY;
-    boolean raw = false;
-    
+
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
     try {
@@ -60,10 +58,6 @@ public class DisplayTopic extends Configured implements Tool {
         formatter.printHelp(ParseCorpus.class.getName(), options);
         System.exit(0);
       }
-      
-      if(line.hasOption("raw")){
-      	raw = true;
-      }
 
       if (line.hasOption(Settings.INPUT_OPTION)) {
         betaString = line.getOptionValue(Settings.INPUT_OPTION);
@@ -72,13 +66,11 @@ public class DisplayTopic extends Configured implements Tool {
             + " not initialized...");
       }
 
-      if(!raw){
-      	if (line.hasOption(ParseCorpus.INDEX)) {
-      		indexString = line.getOptionValue(ParseCorpus.INDEX);
-      	} else {
-      		throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
-      				+ " not initialized...");
-      	}
+      if (line.hasOption(ParseCorpus.INDEX)) {
+        indexString = line.getOptionValue(ParseCorpus.INDEX);
+      } else {
+        throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
+            + " not initialized...");
       }
       if (line.hasOption(TOP_DISPLAY_OPTION)) {
         topDisplay = Integer.parseInt(line.getOptionValue(TOP_DISPLAY_OPTION));
@@ -96,11 +88,9 @@ public class DisplayTopic extends Configured implements Tool {
     FileSystem fs = FileSystem.get(conf);
 
     Path indexPath = null;
-    if(!raw){
-   	 indexPath = new Path(indexString);
-   	 Preconditions.checkArgument(fs.exists(indexPath) && fs.isFile(indexPath),
-   			 "Invalid index path...");
-    }
+    indexPath = new Path(indexString);
+    Preconditions.checkArgument(fs.exists(indexPath) && fs.isFile(indexPath),
+        "Invalid index path...");
     Path betaPath = new Path(betaString);
     Preconditions.checkArgument(fs.exists(betaPath) && fs.isFile(betaPath), "Invalid beta path...");
 

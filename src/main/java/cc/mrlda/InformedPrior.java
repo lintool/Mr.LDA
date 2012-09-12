@@ -48,7 +48,6 @@ public class InformedPrior extends Configured implements Tool {
     Options options = new Options();
 
     options.addOption(Settings.HELP_OPTION, false, "print the help message");
-    options.addOption("raw", false, "Use raw values instead of index");
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("input file").create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
