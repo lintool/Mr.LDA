@@ -8,20 +8,17 @@ Please send any bugs of problems to Ke Zhai (kzhai@umd.edu).
 
 Install and Build
 ----------
-Download the source code package (unzip if necessary) to directory `/home/directory/` in your own local file system (not HDFS). 
-To download all the dependency packages, please run the following command
+Download the source code package (unzip if necessary) to directory `/home/directory/` in your own local file system (not HDFS). To download all the dependency packages, please run the following command
 
     cd /home/directory/Mr.LDA/
     ant
 
-Jar all the .class files anddependency packages to `Mr.LDA.jar`. This can
-either be accomplished manually or by running the following command
+Jar all the .class files anddependency packages to `Mr.LDA.jar`. This can either be accomplished manually or by running the following command
 
     cd /home/directory/Mr.LDA/
     ant export
 
-The above command should create `bin/Mr.LDA-{version}.jar` with all of the
-proper libraries.
+The above command should create `bin/Mr.LDA-{version}.jar` with all of the proper libraries.
 
 Tokenizing and Indexing
 ----------
