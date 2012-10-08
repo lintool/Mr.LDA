@@ -32,9 +32,7 @@ import edu.umd.cloud9.util.map.HMapIV;
 public class DocumentMapper extends MapReduceBase implements
     Mapper<IntWritable, Document, PairOfInts, DoubleWritable> {
 
-  // boolean approximateBeta = false;
-
-  boolean mapperCombiner = false;
+  boolean directEmit = false;
   HMapIV<double[]> totalPhi = null;
   double[] totalAlphaSufficientStatistics;
   OutputCollector<PairOfInts, DoubleWritable> outputCollector;
@@ -42,13 +40,13 @@ public class DocumentMapper extends MapReduceBase implements
   private long configurationTime = 0;
   private long trainingTime = 0;
 
-  private static HMapIV<double[]> beta = null;
+  private static HMapIV<double[]> expectLogBeta = null;
   private static double[] alpha = null;
 
   private static int numberOfTopics = 0;
   private static int numberOfTerms = Integer.MAX_VALUE;
 
-  private static int maximumGammaIteration = Settings.MAXIMUM_GAMMA_ITERATION;
+  private static int maximumGammaIteration = Settings.MAXIMUM_LOCAL_ITERATION;
 
   private static boolean learning = Settings.LEARNING_MODE;
   private static boolean randomStartGamma = Settings.RANDOM_START_GAMMA;
@@ -77,7 +75,7 @@ public class DocumentMapper extends MapReduceBase implements
     numberOfTopics = conf.getInt(Settings.PROPERTY_PREFIX + "model.topics", 0);
     // Settings.DEFAULT_NUMBER_OF_TOPICS);
     maximumGammaIteration = conf.getInt(Settings.PROPERTY_PREFIX
-        + "model.mapper.converge.iteration", Settings.MAXIMUM_GAMMA_ITERATION);
+        + "model.mapper.converge.iteration", Settings.MAXIMUM_LOCAL_ITERATION);
 
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
     randomStartGamma = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.random.start",
@@ -85,11 +83,13 @@ public class DocumentMapper extends MapReduceBase implements
 
     // approximateBeta = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.truncate.beta", false);
 
-    mapperCombiner = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.mapper.combiner", false);
-    if (mapperCombiner) {
+    directEmit = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.mapper.direct.emit",
+        Settings.DEFAULT_DIRECT_EMIT);
+    if (!directEmit) {
       totalPhi = new HMapIV<double[]>();
-      totalAlphaSufficientStatistics = new double[numberOfTopics];
     }
+
+    totalAlphaSufficientStatistics = new double[numberOfTopics];
 
     updateLogGamma = new double[numberOfTopics];
     logPhiTable = new HMapIV<double[]>();
@@ -109,10 +109,11 @@ public class DocumentMapper extends MapReduceBase implements
 
             if (path.getName().startsWith(Settings.BETA)) {
               // TODO: check whether seeded beta is valid, i.e., a true probability distribution
-              Preconditions.checkArgument(beta == null, "Beta matrix was initialized already...");
+              Preconditions.checkArgument(expectLogBeta == null,
+                  "Beta matrix was initialized already...");
               // beta = importBeta(sequenceFileReader, numberOfTopics, numberOfTerms,
               // approximateBeta);
-              beta = importBeta(sequenceFileReader, numberOfTopics, numberOfTerms);
+              expectLogBeta = importBeta(sequenceFileReader, numberOfTopics, numberOfTerms);
             } else if (path.getName().startsWith(Settings.ALPHA)) {
               Preconditions.checkArgument(alpha == null, "Alpha vector was initialized already...");
               // TODO: check the validity of alpha
@@ -143,8 +144,8 @@ public class DocumentMapper extends MapReduceBase implements
       ioe.printStackTrace();
     }
 
-    if (beta == null) {
-      beta = new HMapIV<double[]>();
+    if (expectLogBeta == null) {
+      expectLogBeta = new HMapIV<double[]>();
     }
     if (alpha == null) {
       alpha = new double[numberOfTopics];
@@ -191,12 +192,16 @@ public class DocumentMapper extends MapReduceBase implements
       }
     }
 
-    double[] logPhi = null;// new double[numberOfTopics];
-    // boolean keepGoing = true;
+    double[] logPhi = null;
+
+    HMapII content = value.getContent();
+    if (content == null) {
+      System.err.println("Error - content was null for document " + key.toString());
+      return;
+    }
+
     // be careful when adjust this initial value
     int gammaUpdateIterationCount = 1;
-    HMapII content = value.getContent();
-
     do {
       likelihoodPhi = 0;
 
@@ -205,11 +210,6 @@ public class DocumentMapper extends MapReduceBase implements
         updateLogGamma[i] = Math.log(alpha[i]);
       }
 
-      // TODO: add in null check for content
-      if(content == null){
-      	System.err.println("Error - content was null for document "+key.toString());
-      	return;
-      }
       itr = content.keySet().iterator();
       while (itr.hasNext()) {
         int termID = itr.next();
@@ -223,7 +223,7 @@ public class DocumentMapper extends MapReduceBase implements
         }
 
         int termCounts = content.get(termID);
-        tempLogBeta = retrieveBeta(numberOfTopics, beta, termID, numberOfTerms);
+        tempLogBeta = retrieveBeta(numberOfTopics, expectLogBeta, termID, numberOfTerms);
 
         likelihoodPhi += updatePhi(numberOfTopics, termCounts, tempLogBeta, tempGamma, logPhi,
             updateLogGamma);
@@ -254,11 +254,15 @@ public class DocumentMapper extends MapReduceBase implements
         (long) (-documentLogLikelihood * Settings.DEFAULT_COUNTER_SCALE));
 
     double digammaSumGamma = Gamma.digamma(sumGamma);
+    for (int i = 0; i < numberOfTopics; i++) {
+      totalAlphaSufficientStatistics[i] += Gamma.digamma(tempGamma[i]) - digammaSumGamma;
+    }
 
-    if (mapperCombiner) {
-      outputCollector = output;
+    outputCollector = output;
+
+    if (!directEmit) {
       if (learning) {
-        if (Runtime.getRuntime().freeMemory() < VariationalInference.MEMORY_THRESHOLD) {
+        if (Runtime.getRuntime().freeMemory() < Settings.MEMORY_THRESHOLD) {
           itr = totalPhi.keySet().iterator();
           while (itr.hasNext()) {
             int termID = itr.next();
@@ -273,14 +277,14 @@ public class DocumentMapper extends MapReduceBase implements
           }
           totalPhi.clear();
 
-          for (int i = 0; i < numberOfTopics; i++) {
-            // a *zero* topic index and a *positive* topic index indicates the output is a term for
-            // alpha updating
-            outputKey.set(0, i + 1);
-            outputValue.set(totalAlphaSufficientStatistics[i]);
-            output.collect(outputKey, outputValue);
-            totalAlphaSufficientStatistics[i] = 0;
-          }
+          // for (int i = 0; i < numberOfTopics; i++) {
+          // a *zero* topic index and a *positive* topic index indicates the output is a term for
+          // alpha updating
+          // outputKey.set(0, i + 1);
+          // outputValue.set(totalAlphaSufficientStatistics[i]);
+          // output.collect(outputKey, outputValue);
+          // totalAlphaSufficientStatistics[i] = 0;
+          // }
         }
 
         itr = content.keySet().iterator();
@@ -306,10 +310,6 @@ public class DocumentMapper extends MapReduceBase implements
               output.collect(outputKey, outputValue);
             }
           }
-
-          for (int i = 0; i < numberOfTopics; i++) {
-            totalAlphaSufficientStatistics[i] += Gamma.digamma(tempGamma[i]) - digammaSumGamma;
-          }
         }
       }
     } else {
@@ -328,13 +328,13 @@ public class DocumentMapper extends MapReduceBase implements
           }
         }
 
-        for (int i = 0; i < numberOfTopics; i++) {
-          // a *zero* topic index and a *positive* topic index indicates the output is a term for
-          // alpha updating
-          outputKey.set(0, i + 1);
-          outputValue.set((Gamma.digamma(tempGamma[i]) - digammaSumGamma));
-          output.collect(outputKey, outputValue);
-        }
+        // for (int i = 0; i < numberOfTopics; i++) {
+        // a *zero* topic index and a *positive* topic index indicates the output is a term for
+        // alpha updating
+        // outputKey.set(0, i + 1);
+        // outputValue.set((Gamma.digamma(tempGamma[i]) - digammaSumGamma));
+        // output.collect(outputKey, outputValue);
+        // }
       }
     }
 
@@ -350,9 +350,16 @@ public class DocumentMapper extends MapReduceBase implements
   }
 
   public void close() throws IOException {
-    multipleOutputs.close();
+    for (int i = 0; i < numberOfTopics; i++) {
+      // a *zero* topic index and a *positive* topic index indicates the output is a term for
+      // alpha updating
+      outputKey.set(0, i + 1);
+      outputValue.set(totalAlphaSufficientStatistics[i]);
+      outputCollector.collect(outputKey, outputValue);
+      totalAlphaSufficientStatistics[i] = 0;
+    }
 
-    if (mapperCombiner) {
+    if (!directEmit) {
       double[] phi = null;
       itr = totalPhi.keySet().iterator();
       while (itr.hasNext()) {
@@ -367,16 +374,8 @@ public class DocumentMapper extends MapReduceBase implements
         }
       }
       totalPhi.clear();
-
-      for (int i = 0; i < numberOfTopics; i++) {
-        // a *zero* topic index and a *positive* topic index indicates the output is a term for
-        // alpha updating
-        outputKey.set(0, i + 1);
-        outputValue.set(totalAlphaSufficientStatistics[i]);
-        outputCollector.collect(outputKey, outputValue);
-        totalAlphaSufficientStatistics[i] = 0;
-      }
     }
+    multipleOutputs.close();
   }
 
   /**
@@ -497,8 +496,8 @@ public class DocumentMapper extends MapReduceBase implements
       // double logNormalizer = Math.log(pairOfIntFloat.getRightElement());
       // double logNormalizer = Math.log(hashMap.getNormalizeFactor());
 
-      logNormalizer = LogMath.add(pairOfIntFloat.getRightElement(),
-          Settings.DEFAULT_LOG_ETA + Math.log(numberOfTerms));
+      // logNormalizer = LogMath.add(pairOfIntFloat.getRightElement(),
+      // Settings.DEFAULT_LOG_ETA + Math.log(numberOfTerms));
 
       Iterator<Integer> itr = hashMap.keySet().iterator();
       while (itr.hasNext()) {
@@ -512,11 +511,13 @@ public class DocumentMapper extends MapReduceBase implements
           double[] vector = new double[numberOfTopics];
           // this introduces some normalization error into the system, since beta might not be a
           // valid probability distribution anymore, normalizer may exclude some of those terms
-          for (int i = 0; i < vector.length; i++) {
-            vector[i] = VariationalInference.DEFAULT_LOG_ETA;
-          }
-          vector[topicIndex] = LogMath.add(logBetaValue, vector[topicIndex]);
-          // vector[topicIndex] = betaValue;
+
+          // for (int i = 0; i < vector.length; i++) {
+          // vector[i] = Settings.DEFAULT_LOG_ETA;
+          // }
+          // vector[topicIndex] = LogMath.add(logBetaValue, vector[topicIndex]);
+
+          vector[topicIndex] = logBetaValue;
           beta.put(termIndex, vector);
         } else {
           // beta.get(termIndex)[topicIndex] = betaValue;
