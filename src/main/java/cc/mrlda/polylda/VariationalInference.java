@@ -96,12 +96,12 @@ public class VariationalInference extends Configured implements Tool {
         .withDescription("the iteration/index of current model parameters")
         .create(Settings.RESUME_OPTION));
 
-    options.addOption(FileMerger.LOCAL_MERGE_OPTION, false,
-        "merge output files and parameters locally, recommend for small scale cluster");
     options.addOption(Settings.RANDOM_START_GAMMA_OPTION, false,
         "start gamma from random point every iteration");
 
-    options.addOption(Settings.MAPPER_COMBINER_OPTION, false, "enable in-mapper-combiner");
+    // options.addOption(FileMerger.LOCAL_MERGE_OPTION, false,
+    // "merge output files and parameters locally, recommend for small scale cluster");
+    // options.addOption(Settings.MAPPER_COMBINER_OPTION, false, "enable in-mapper-combiner");
     // options.addOption(Settings.TRUNCATE_BETA_OPTION, false,
     // "enable beta truncation of top 1000");
 
@@ -126,6 +126,7 @@ public class VariationalInference extends Configured implements Tool {
 
     // boolean mapperCombiner = false;
 
+    Configuration configuration = this.getConf();
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
     try {
@@ -133,6 +134,7 @@ public class VariationalInference extends Configured implements Tool {
 
       if (line.hasOption(Settings.HELP_OPTION)) {
         formatter.printHelp(VariationalInference.class.getName(), options);
+        ToolRunner.printGenericCommandUsage(System.out);
         System.exit(0);
       }
 
@@ -274,6 +276,7 @@ public class VariationalInference extends Configured implements Tool {
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
       formatter.printHelp(VariationalInference.class.getName(), options);
+      ToolRunner.printGenericCommandUsage(System.err);
       System.exit(0);
     } catch (NumberFormatException nfe) {
       System.err.println(nfe.getMessage());
@@ -284,12 +287,12 @@ public class VariationalInference extends Configured implements Tool {
     // numberOfIterations, mapperTasks, reducerTasks, localMerge, training, randomStartGamma,
     // resume, informedPrior, modelPath, snapshotIndex, mapperCombiner, truncateBeta);
 
-    return run(inputPath, outputPath, numberOfTopics, numberOfLanguages, numberOfTerms,
+    return run(configuration, inputPath, outputPath, numberOfTopics, numberOfLanguages, numberOfTerms,
         numberOfIterations, mapperTasks, reducerTasks, localMerge, training, randomStartGamma,
         resume, modelPath, snapshotIndex);
   }
 
-  private int run(String inputPath, String outputPath, int numberOfTopics, int numberOfLanguages,
+  private int run(Configuration configuration, String inputPath, String outputPath, int numberOfTopics, int numberOfLanguages,
       int[] numberOfTerms, int numberOfIterations, int mapperTasks, int reducerTasks,
       boolean localMerge, boolean training, boolean randomStartGamma, boolean resume,
       String modelPath, int snapshotIndex) throws Exception {
@@ -315,7 +318,7 @@ public class VariationalInference extends Configured implements Tool {
     // sLogger.info(" - truncation beta: " + truncateBeta);
     // sLogger.info(" - informed prior: " + informedPrior);
 
-    JobConf conf = new JobConf(VariationalInference.class);
+    JobConf conf = new JobConf(configuration, VariationalInference.class);
     FileSystem fs = FileSystem.get(conf);
 
     // delete the overall output path
@@ -403,7 +406,7 @@ public class VariationalInference extends Configured implements Tool {
     int numberOfDocuments = 0;
 
     do {
-      conf = new JobConf(VariationalInference.class);
+      conf = new JobConf(configuration, VariationalInference.class);
       if (training) {
         conf.setJobName(VariationalInference.class.getSimpleName() + " - Iteration "
             + (iterationCount + 1));
@@ -432,8 +435,8 @@ public class VariationalInference extends Configured implements Tool {
       // Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_THRESHOLD);
       // conf.setFloat(Settings.PROPERTY_PREFIX + "model.mapper.converge.likelihood",
       // Settings.DEFAULT_GAMMA_UPDATE_CONVERGE_CRITERIA);
-      conf.setFloat(Settings.PROPERTY_PREFIX + "model.mapper.converge.iteration",
-          Settings.MAXIMUM_GAMMA_ITERATION);
+      conf.setInt(Settings.PROPERTY_PREFIX + "model.mapper.converge.iteration",
+          Settings.MAXIMUM_LOCAL_ITERATION);
 
       conf.setInt(Settings.PROPERTY_PREFIX + "model.topics", numberOfTopics);
       conf.setInt(Settings.PROPERTY_PREFIX + "model.languages", numberOfLanguages);
@@ -471,9 +474,6 @@ public class VariationalInference extends Configured implements Tool {
       conf.setMapOutputValueClass(DoubleWritable.class);
       conf.setOutputKeyClass(IntWritable.class);
       conf.setOutputValueClass(DoubleWritable.class);
-
-      conf.setCompressMapOutput(false);
-      FileOutputFormat.setCompressOutput(conf, true);
 
       FileInputFormat.setInputPaths(conf, inputDir);
       FileOutputFormat.setOutputPath(conf, tempDir);
@@ -583,9 +583,9 @@ public class VariationalInference extends Configured implements Tool {
           // TripleOfInts.class, HMapIFW.class, true);
         } else {
           for (int languageIndex = 0; languageIndex < numberOfLanguages; languageIndex++) {
-            betaDir[languageIndex] = FileMerger.mergeSequenceFiles(betaGlobDir[languageIndex],
-                betaPath[languageIndex] + (iterationCount + 1), reducerTasks, PairOfIntFloat.class,
-                HMapIDW.class, true, true);
+            betaDir[languageIndex] = FileMerger.mergeSequenceFiles(new Configuration(),
+                betaGlobDir[languageIndex], betaPath[languageIndex] + (iterationCount + 1),
+                reducerTasks, PairOfIntFloat.class, HMapIDW.class, true, true);
           }
         }
 

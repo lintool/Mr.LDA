@@ -142,12 +142,14 @@ public class ParseCorpus extends Configured implements Tool {
     float minimumDocumentFrequency = DEFAULT_MINIMUM_DOCUMENT_FREQUENCY;
     boolean localMerge = FileMerger.LOCAL_MERGE;
 
+    Configuration configuration = this.getConf();
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
     try {
       CommandLine line = parser.parse(options, args);
 
       if (line.hasOption(Settings.HELP_OPTION)) {
+        ToolRunner.printGenericCommandUsage(System.out);
         formatter.printHelp(ParseCorpus.class.getName(), options);
         System.exit(0);
       }
@@ -207,6 +209,7 @@ public class ParseCorpus extends Configured implements Tool {
           + " must be strictly larger than option " + MINIMUM_DOCUMENT_FREQUENCY + "...");
     } catch (ParseException pe) {
       System.err.println(pe.getMessage());
+      ToolRunner.printGenericCommandUsage(System.err);
       formatter.printHelp(ParseCorpus.class.getName(), options);
       System.exit(0);
     } catch (NumberFormatException nfe) {
@@ -220,11 +223,11 @@ public class ParseCorpus extends Configured implements Tool {
     String indexPath = outputPath + INDEX;
 
     // Delete the output directory if it exists already
-    FileSystem fs = FileSystem.get(new JobConf(ParseCorpus.class));
+    FileSystem fs = FileSystem.get(new JobConf(configuration, ParseCorpus.class));
     fs.delete(new Path(outputPath), true);
 
     try {
-      int[][] corpusStatistics = tokenizeDocument(inputPath, indexPath, numberOfLanguages,
+      int[][] corpusStatistics = tokenizeDocument(configuration, inputPath, indexPath, numberOfLanguages,
           numberOfMappers, numberOfReducers);
       int[] documentCount = corpusStatistics[0];
       int[] termCount = corpusStatistics[1];
@@ -248,20 +251,20 @@ public class ParseCorpus extends Configured implements Tool {
       // Path titleIndexPath = indexTitle(titleGlobString, titleString, numberOfMappers);
       Path titleIndexPath = null;
       if (localMerge) {
-        titleIndexPath = indexTitle(titleGlobString, titleString, 0);
+        titleIndexPath = indexTitle(configuration, titleGlobString, titleString, 0);
       } else {
-        titleIndexPath = indexTitle(titleGlobString, titleString, numberOfMappers);
+        titleIndexPath = indexTitle(configuration, titleGlobString, titleString, numberOfMappers);
       }
 
       String termGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
       String termString = outputPath + TERM;
-      Path[] termIndexPath = indexTerm(termGlobString, termString, numberOfLanguages,
+      Path[] termIndexPath = indexTerm(configuration, termGlobString, termString, numberOfLanguages,
           numberOfMappers, minimumDocumentCount, maximumDocumentCount);
 
       String documentGlobString = indexPath + Path.SEPARATOR + DOCUMENT + Settings.UNDER_SCORE
           + DOCUMENT + Settings.DASH + Settings.STAR;
       String documentString = outputPath + DOCUMENT;
-      Path documentPath = indexDocument(documentGlobString, documentString, termString,
+      Path documentPath = indexDocument(configuration, documentGlobString, documentString, termString,
           titleString, numberOfLanguages, numberOfMappers);
     } finally {
       fs.delete(new Path(indexPath), true);
@@ -416,7 +419,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public int[][] tokenizeDocument(String inputPath, String outputPath, int numberOfLanguages,
+  public int[][] tokenizeDocument(Configuration configuration, String inputPath, String outputPath, int numberOfLanguages,
       int numberOfMappers, int numberOfReducers) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - tokenize document");
     sLogger.info(" - input path: " + inputPath);
@@ -425,7 +428,7 @@ public class ParseCorpus extends Configured implements Tool {
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + numberOfReducers);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(configuration, ParseCorpus.class);
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
     FileSystem fs = FileSystem.get(conf);
 
@@ -491,14 +494,14 @@ public class ParseCorpus extends Configured implements Tool {
     return corpusStatistics;
   }
 
-  public Path indexTitle(String inputTitles, String outputTitle, int numberOfMappers)
+  public Path indexTitle(Configuration configuration, String inputTitles, String outputTitle, int numberOfMappers)
       throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - index title");
     sLogger.info(" - input path: " + inputTitles);
     sLogger.info(" - output path: " + outputTitle);
     sLogger.info(" - number of mappers: " + numberOfMappers);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(configuration, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     Path titleIndexPath = new Path(outputTitle);
@@ -507,7 +510,7 @@ public class ParseCorpus extends Configured implements Tool {
         + FileMerger.generateRandomString();
 
     // TODO: filemerger local merge can not deal with NullWritable class
-    Path titlePath = FileMerger.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
+    Path titlePath = FileMerger.mergeSequenceFiles(configuration, inputTitles, outputTitleFile, numberOfMappers,
         Text.class, NullWritable.class, true);
 
     SequenceFile.Reader sequenceFileReader = null;
@@ -612,7 +615,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public Path[] indexTerm(String inputTerms, String outputTerm, int numberOfLanguages,
+  public Path[] indexTerm(Configuration configuration, String inputTerms, String outputTerm, int numberOfLanguages,
       int numberOfMappers, float[] minimumDocumentCount, float[] maximumDocumentCount)
       throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - index term");
@@ -627,7 +630,7 @@ public class ParseCorpus extends Configured implements Tool {
     Path inputTermFiles = new Path(inputTerms);
     Path[] outputTermFile = new Path[numberOfLanguages];
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(configuration, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - index term");
@@ -823,7 +826,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public Path indexDocument(String inputDocument, String outputDocument, String termIndex,
+  public Path indexDocument(Configuration configuration, String inputDocument, String outputDocument, String termIndex,
       String titleIndex, int numberOfLanguages, int numberOfMappers) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - index document");
     sLogger.info(" - input path: " + inputDocument);
@@ -834,7 +837,7 @@ public class ParseCorpus extends Configured implements Tool {
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + 0);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(configuration, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - index document");
