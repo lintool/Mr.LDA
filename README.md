@@ -89,7 +89,6 @@ To train LDA model on a dataset, please run one of the following command:
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20
-    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20 -localmerge
 
 The first four parameters are required options, and the following options are free parameter with their respective default values. Take note that `-term` option specifies the total number of unique tokens in the whole corpus. If this value is not available from context at run time, it is advised to set this option to the approximated upper bound of the total number of unique tokens in the entire corpus.
