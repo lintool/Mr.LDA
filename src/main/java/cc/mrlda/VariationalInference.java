@@ -41,6 +41,12 @@ import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
 import edu.umd.cloud9.math.Gamma;
 
+/**
+ * This is the entry point of vanilla MapReduce latent Dirichlet allocation package.
+ * 
+ * @author kzhai
+ *
+ */
 public class VariationalInference extends Configured implements Tool {
   // specific settings
   public static final String TRUNCATE_BETA_OPTION = "truncatebeta";
@@ -589,6 +595,15 @@ public class VariationalInference extends Configured implements Tool {
     return 0;
   }
 
+  /**
+   * This method updates the hyperparameter alpha of the topic Dirichlet.
+   * 
+   * @param numberOfTopics the number of topics
+   * @param numberOfDocuments the number of documents in this corpus
+   * @param alphaVector the current alpha vector
+   * @param alphaSufficientStatistics the alpha sufficient statistics collected from the corpus
+   * @return
+   */
   public static double[] updateVectorAlpha(int numberOfTopics, int numberOfDocuments,
       double[] alphaVector, double[] alphaSufficientStatistics) {
     double[] alphaVectorUpdate = new double[numberOfTopics];
@@ -693,6 +708,13 @@ public class VariationalInference extends Configured implements Tool {
     return alphaVector;
   }
 
+  /**
+   * This method imports alpha vectory from a sequence file 
+   * @param sequenceFileReader the reader for a sequence file
+   * @param numberOfTopics number of topics
+   * @return
+   * @throws IOException
+   */
   public static double[] importAlpha(SequenceFile.Reader sequenceFileReader, int numberOfTopics)
       throws IOException {
     double[] alpha = new double[numberOfTopics];
@@ -714,6 +736,12 @@ public class VariationalInference extends Configured implements Tool {
     return alpha;
   }
 
+  /**
+   * This methods export alpha vector to a sequence file.
+   * @param sequenceFileWriter the writer for sequence file
+   * @param alpha the alpha vector get exported
+   * @throws IOException
+   */
   public static void exportAlpha(SequenceFile.Writer sequenceFileWriter, double[] alpha)
       throws IOException {
     IntWritable intWritable = new IntWritable();

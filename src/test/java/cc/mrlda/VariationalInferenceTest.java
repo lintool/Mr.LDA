@@ -31,6 +31,13 @@ public class VariationalInferenceTest {
         -23973.2360888324797 };
     double[] alphaUpdateVector = VariationalInference.updateVectorAlpha(3, 112, alphaVector,
         alphaSufficientStatistics);
+
+    double[] desiredAlphaUpdateVector = { 0.4736839726180464, 9.92872697528388, 8.319361678447015 };
+
+    assertEquals(alphaUpdateVector.length, desiredAlphaUpdateVector.length);
+    for (int i = 0; i < alphaUpdateVector.length; i++) {
+      assertEquals(alphaUpdateVector[i], desiredAlphaUpdateVector[i], PRECISION_10);
+    }
   }
 
   @Test
