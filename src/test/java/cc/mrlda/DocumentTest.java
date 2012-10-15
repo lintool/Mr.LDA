@@ -23,7 +23,7 @@ public class DocumentTest {
 
     assertTrue(doc1.getContent() == null);
     assertEquals(doc1.getNumberOfTypes(), 0);
-    assertEquals(doc1.getNumberOfWords(), 0);
+    assertEquals(doc1.getNumberOfTokens(), 0);
   }
 
   @Test
@@ -38,7 +38,7 @@ public class DocumentTest {
     assertEquals(doc1.getNumberOfTopics(), 0);
 
     assertTrue(doc1.getContent() != null);
-    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTokens(), 37);
     assertEquals(doc1.getNumberOfTypes(), hmap1.size());
 
     Iterator<Integer> itr = doc1.getContent().keySet().iterator();
@@ -68,7 +68,7 @@ public class DocumentTest {
     }
 
     assertTrue(doc1.getContent() != null);
-    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTokens(), 37);
     assertEquals(doc1.getNumberOfTypes(), hmap1.size());
 
     Iterator<Integer> itr = doc1.getContent().keySet().iterator();
@@ -86,7 +86,7 @@ public class DocumentTest {
 
     assertTrue(doc1.getContent() == null);
     assertEquals(doc1.getNumberOfTypes(), 0);
-    assertEquals(doc1.getNumberOfWords(), 0);
+    assertEquals(doc1.getNumberOfTokens(), 0);
 
     HMapII hmap1 = new HMapII();
     hmap1.put(1, 22);
@@ -98,7 +98,7 @@ public class DocumentTest {
     assertEquals(doc1.getNumberOfTopics(), 0);
 
     assertTrue(doc1.getContent() != null);
-    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTokens(), 37);
     assertEquals(doc1.getNumberOfTypes(), hmap1.size());
 
     Iterator<Integer> itr = doc1.getContent().keySet().iterator();
@@ -113,7 +113,7 @@ public class DocumentTest {
 
     assertTrue(doc1.getContent() == null);
     assertEquals(doc1.getNumberOfTypes(), 0);
-    assertEquals(doc1.getNumberOfWords(), 0);
+    assertEquals(doc1.getNumberOfTokens(), 0);
   }
 
   @Test
@@ -129,14 +129,14 @@ public class DocumentTest {
 
     Document doc1 = new Document(hmap1, array1);
     assertEquals(doc1.getNumberOfTopics(), 2);
-    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTokens(), 37);
     assertEquals(doc1.getNumberOfTypes(), 3);
 
     Document doc2 = Document.create(doc1.serialize());
     HMapII hmap2 = doc2.getContent();
     double[] array2 = doc2.getGamma();
 
-    assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
+    assertEquals(doc2.getNumberOfTokens(), doc1.getNumberOfTokens());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
     assertEquals(doc2.getNumberOfTopics(), doc1.getNumberOfTopics());
     assertEquals(hmap2.size(), hmap1.size());
@@ -164,7 +164,7 @@ public class DocumentTest {
     Document doc1 = new Document(hmap1, array1);
 
     assertEquals(doc1.getNumberOfTopics(), 0);
-    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTokens(), 37);
     assertEquals(doc1.getNumberOfTypes(), 3);
     assertEquals(doc1.getGamma(), null);
 
@@ -172,7 +172,7 @@ public class DocumentTest {
     HMapII hmap2 = doc2.getContent();
     double[] array2 = doc2.getGamma();
 
-    assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
+    assertEquals(doc2.getNumberOfTokens(), doc1.getNumberOfTokens());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
     assertEquals(doc2.getNumberOfTopics(), doc1.getNumberOfTopics());
     assertEquals(array2, array1);
@@ -194,7 +194,7 @@ public class DocumentTest {
 
     Document doc1 = new Document(hmap1, array1);
     assertEquals(doc1.getNumberOfTopics(), 2);
-    assertEquals(doc1.getNumberOfWords(), 0);
+    assertEquals(doc1.getNumberOfTokens(), 0);
     assertEquals(doc1.getNumberOfTypes(), 0);
     assertEquals(doc1.getContent(), null);
 
@@ -203,7 +203,7 @@ public class DocumentTest {
     HMapII hmap2 = doc2.getContent();
     double[] array2 = doc2.getGamma();
 
-    assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
+    assertEquals(doc2.getNumberOfTokens(), doc1.getNumberOfTokens());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
     assertEquals(doc2.getNumberOfTopics(), doc1.getNumberOfTopics());
     assertEquals(hmap2, hmap1);
@@ -221,7 +221,7 @@ public class DocumentTest {
 
     Document doc1 = new Document(hmap1, array1);
     assertEquals(doc1.getNumberOfTopics(), 0);
-    assertEquals(doc1.getNumberOfWords(), 0);
+    assertEquals(doc1.getNumberOfTokens(), 0);
     assertEquals(doc1.getNumberOfTypes(), 0);
     assertEquals(doc1.getContent(), null);
     assertEquals(doc1.getGamma(), null);
@@ -231,7 +231,7 @@ public class DocumentTest {
     HMapII hmap2 = doc2.getContent();
     double[] array2 = doc2.getGamma();
 
-    assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
+    assertEquals(doc2.getNumberOfTokens(), doc1.getNumberOfTokens());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
     assertEquals(doc2.getNumberOfTopics(), doc1.getNumberOfTopics());
     assertEquals(hmap2, hmap1);
@@ -246,7 +246,7 @@ public class DocumentTest {
     hmap1.put(3, 10);
 
     Document doc1 = new Document(hmap1);
-    assertEquals(doc1.getNumberOfWords(), 37);
+    assertEquals(doc1.getNumberOfTokens(), 37);
     assertEquals(doc1.getNumberOfTypes(), 3);
     assertEquals(doc1.getNumberOfTopics(), 0);
     assertEquals(doc1.getGamma(), null);
@@ -264,7 +264,7 @@ public class DocumentTest {
     HMapII hmap2 = doc2.getContent();
     double[] array2 = doc2.getGamma();
 
-    assertEquals(doc2.getNumberOfWords(), doc1.getNumberOfWords());
+    assertEquals(doc2.getNumberOfTokens(), doc1.getNumberOfTokens());
     assertEquals(doc2.getNumberOfTypes(), doc1.getNumberOfTypes());
     assertEquals(doc2.getNumberOfTopics(), doc1.getNumberOfTopics());
     assertEquals(hmap2.size(), hmap1.size());

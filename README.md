@@ -13,7 +13,7 @@ Download the source code package (unzip if necessary) to directory `/home/direct
     cd /home/directory/Mr.LDA/
     ant
 
-Jar all the .class files anddependency packages to `Mr.LDA.jar`. This can either be accomplished manually or by running the following command
+Jar all the .class files and dependency packages to `Mr.LDA.jar`. This can either be accomplished manually or by running the following command
 
     cd /home/directory/Mr.LDA/
     ant export
@@ -88,7 +88,6 @@ To train LDA model on a dataset, please run one of the following command:
 
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40
-    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20 -localmerge
 

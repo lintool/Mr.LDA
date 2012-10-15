@@ -44,7 +44,7 @@ public class TermReducer extends MapReduceBase implements
   // private static int numberOfTerms = 0;
 
   private int topicIndex = 0;
-  private double normalizeFactor = 0;
+  private double logNormalizeFactor = 0;
 
   private MultipleOutputs multipleOutputs;
   private OutputCollector<PairOfIntFloat, HMapIDW> outputBeta;
@@ -162,14 +162,16 @@ public class TermReducer extends MapReduceBase implements
 
     if (lambdaMap != null) {
       logPhiValue = LogMath.add(
-          InformedPrior.getEta(key.getRightElement(), lambdaMap.get(topicIndex)), logPhiValue);
+          InformedPrior.getLogEta(key.getRightElement(), lambdaMap.get(topicIndex)), logPhiValue);
+    }else{
+      logPhiValue = LogMath.add(Settings.DEFAULT_LOG_ETA, logPhiValue);
     }
 
     if (topicIndex != key.getLeftElement()) {
       if (topicIndex == 0) {
         outputBeta = multipleOutputs.getCollector(Settings.BETA, Settings.BETA, reporter);
       } else {
-        outputKey.set(topicIndex, (float) normalizeFactor);
+        outputKey.set(topicIndex, (float) logNormalizeFactor);
         // outputKey.set(topicIndex, (float) Math.exp(normalizeFactor));
 
         // if (truncateBeta) {
@@ -186,7 +188,7 @@ public class TermReducer extends MapReduceBase implements
       }
 
       topicIndex = key.getLeftElement();
-      normalizeFactor = logPhiValue;
+      logNormalizeFactor = logPhiValue;
       // if (truncateBeta) {
       // treeMap.clear();
       // treeMap.put(phiValue, key.getRightElement());
@@ -210,7 +212,7 @@ public class TermReducer extends MapReduceBase implements
       // normalizeFactor = LogMath.add(normalizeFactor, phiValue);
       // }
       // } else {
-      normalizeFactor = LogMath.add(normalizeFactor, logPhiValue);
+      logNormalizeFactor = LogMath.add(logNormalizeFactor, logPhiValue);
       outputValue.put(key.getRightElement(), logPhiValue);
       // outputValue.put(key.getRightElement(), Math.exp(phiValue));
       // }
@@ -233,7 +235,7 @@ public class TermReducer extends MapReduceBase implements
     // } else {
     if (!outputValue.isEmpty()) {
       // outputKey.set(topicIndex, (float) Math.exp(normalizeFactor));
-      outputKey.set(topicIndex, (float) normalizeFactor);
+      outputKey.set(topicIndex, (float) logNormalizeFactor);
       outputBeta.collect(outputKey, outputValue);
     }
     // }

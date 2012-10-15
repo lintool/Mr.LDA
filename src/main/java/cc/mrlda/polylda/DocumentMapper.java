@@ -42,7 +42,7 @@ public class DocumentMapper extends MapReduceBase implements
   private static int numberOfLanguages = 0;
   private static int[] numberOfTerms = null;
 
-  private static int maximumGammaIteration = Settings.MAXIMUM_GAMMA_ITERATION;
+  private static int maximumGammaIteration = Settings.MAXIMUM_LOCAL_ITERATION;
 
   private static boolean learning = Settings.LEARNING_MODE;
   private static boolean randomStartGamma = Settings.RANDOM_START_GAMMA;
@@ -81,7 +81,7 @@ public class DocumentMapper extends MapReduceBase implements
           + Settings.DOT + (languageIndex + 1), Integer.MAX_VALUE);
     }
     maximumGammaIteration = conf.getInt(Settings.PROPERTY_PREFIX
-        + "model.mapper.converge.iteration", Settings.MAXIMUM_GAMMA_ITERATION);
+        + "model.mapper.converge.iteration", Settings.MAXIMUM_LOCAL_ITERATION);
 
     learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
     randomStartGamma = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.random.start",
@@ -120,12 +120,12 @@ public class DocumentMapper extends MapReduceBase implements
               beta[languageIndex - 1] = cc.mrlda.DocumentMapper.importBeta(sequenceFileReader,
                   numberOfTopics, numberOfTerms[languageIndex - 1]);
 
-//              System.out.println(beta[languageIndex - 1] + " ");
+              // System.out.println(beta[languageIndex - 1] + " ");
             } else if (path.getName().startsWith(Settings.ALPHA)) {
               Preconditions.checkArgument(alpha == null, "Alpha vector was initialized already...");
 
               // TODO: check the validity of alpha
-              alpha = VariationalInference.importAlpha(sequenceFileReader, numberOfTopics);
+              alpha = cc.mrlda.VariationalInference.importAlpha(sequenceFileReader, numberOfTopics);
               double sumLnGammaAlpha = 0;
               for (double value : alpha) {
                 sumLnGammaAlpha += Gamma.lngamma(value);

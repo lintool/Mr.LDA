@@ -169,7 +169,7 @@ public class InformedPrior extends Configured implements Tool {
     }
   }
 
-  public static float getEta(int termID, Set<Integer> knownTerms) {
+  public static float getLogEta(int termID, Set<Integer> knownTerms) {
     if (knownTerms != null && knownTerms.contains(termID)) {
       return DEFAULT_INFORMED_LOG_ETA;
     }

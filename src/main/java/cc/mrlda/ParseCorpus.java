@@ -62,7 +62,7 @@ import edu.umd.cloud9.util.map.HMapII;
 public class ParseCorpus extends Configured implements Tool {
   static final Logger sLogger = Logger.getLogger(ParseCorpus.class);
 
-  private static enum MyCounter {
+  protected static enum MyCounter {
     TOTAL_DOCS, TOTAL_TERMS, LOW_DOCUMENT_FREQUENCY_TERMS, HIGH_DOCUMENT_FREQUENCY_TERMS, LEFT_OVER_TERMS, LEFT_OVER_DOCUMENTS, COLLAPSED_DOCUMENTS,
   }
 
@@ -130,8 +130,9 @@ public class ParseCorpus extends Configured implements Tool {
     float minimumDocumentFrequency = DEFAULT_MINIMUM_DOCUMENT_FREQUENCY;
     boolean localMerge = FileMerger.LOCAL_MERGE;
 
-    Configuration config = getConf();
+    Configuration configuration = this.getConf();
     CommandLineParser parser = new GnuParser();
+
     HelpFormatter formatter = new HelpFormatter();
     try {
       CommandLine line = parser.parse(options, args);
@@ -200,12 +201,12 @@ public class ParseCorpus extends Configured implements Tool {
     String indexPath = outputPath + INDEX;
 
     // Delete the output directory if it exists already
-    FileSystem fs = FileSystem.get(new JobConf(config, ParseCorpus.class));
+    FileSystem fs = FileSystem.get(new JobConf(configuration, ParseCorpus.class));
     fs.delete(new Path(outputPath), true);
 
     try {
-      int[] corpusStatistics = tokenizeDocument(config, inputPath, indexPath, numberOfMappers,
-          numberOfReducers);
+      int[] corpusStatistics = tokenizeDocument(configuration, inputPath, indexPath,
+          numberOfMappers, numberOfReducers);
       int documentCount = corpusStatistics[0];
       int termsCount = corpusStatistics[1];
 
@@ -216,23 +217,22 @@ public class ParseCorpus extends Configured implements Tool {
       // Path titleIndexPath = indexTitle(titleGlobString, titleString, numberOfMappers);
       Path titleIndexPath = null;
       if (localMerge) {
-        titleIndexPath = indexTitle(config, titleGlobString, titleString, 0);
+        titleIndexPath = indexTitle(configuration, titleGlobString, titleString, 0);
       } else {
-        titleIndexPath = indexTitle(config, titleGlobString, titleString, numberOfMappers);
+        titleIndexPath = indexTitle(configuration, titleGlobString, titleString, numberOfMappers);
       }
 
       String termGlobString = indexPath + Path.SEPARATOR + "part-" + Settings.STAR;
       String termString = outputPath + TERM;
-      Path termIndexPath = indexTerm(config, termGlobString, termString, numberOfMappers,
+      Path termIndexPath = indexTerm(configuration, termGlobString, termString, numberOfMappers,
           documentCount * minimumDocumentFrequency, documentCount * maximumDocumentFrequency);
 
       String documentGlobString = indexPath + Path.SEPARATOR + DOCUMENT + Settings.UNDER_SCORE
           + DOCUMENT + Settings.DASH + Settings.STAR;
       String documentString = outputPath + DOCUMENT;
 
-      Path documentPath = indexDocument(config, documentGlobString, documentString,
+      Path documentPath = indexDocument(configuration, documentGlobString, documentString,
           termIndexPath.toString(), titleIndexPath.toString(), numberOfMappers);
-
     } finally {
       fs.delete(new Path(indexPath), true);
     }
@@ -240,7 +240,7 @@ public class ParseCorpus extends Configured implements Tool {
     return 0;
   }
 
-  public static class TokenizeMapper extends MapReduceBase implements
+  private static class TokenizeMapper extends MapReduceBase implements
       Mapper<LongWritable, Text, Text, PairOfInts> {
     private Text term = new Text();
     private PairOfInts counts = new PairOfInts();
@@ -299,7 +299,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public static class TokenizeCombiner extends MapReduceBase implements
+  private static class TokenizeCombiner extends MapReduceBase implements
       Reducer<Text, PairOfInts, Text, PairOfInts> {
     private PairOfInts counts = new PairOfInts();
 
@@ -319,7 +319,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public static class TokenizeReducer extends MapReduceBase implements
+  private static class TokenizeReducer extends MapReduceBase implements
       Reducer<Text, PairOfInts, Text, PairOfInts> {
     private PairOfInts counts = new PairOfInts();
 
@@ -341,7 +341,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public int[] tokenizeDocument(Configuration config, String inputPath, String outputPath,
+  public int[] tokenizeDocument(Configuration configuration, String inputPath, String outputPath,
       int numberOfMappers, int numberOfReducers) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - tokenize document");
     sLogger.info(" - input path: " + inputPath);
@@ -349,7 +349,7 @@ public class ParseCorpus extends Configured implements Tool {
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + numberOfReducers);
 
-    JobConf conf = new JobConf(config, ParseCorpus.class);
+    JobConf conf = new JobConf(configuration, ParseCorpus.class);
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
     FileSystem fs = FileSystem.get(conf);
 
@@ -394,9 +394,9 @@ public class ParseCorpus extends Configured implements Tool {
     return corpusStatistics;
   }
 
-  public Path indexTitle(Configuration config, String inputTitles, String outputTitle,
+  public Path indexTitle(Configuration configuration, String inputTitles, String outputTitle,
       int numberOfMappers) throws Exception {
-    JobConf conf = new JobConf(config, ParseCorpus.class);
+    JobConf conf = new JobConf(configuration, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     Path titleIndexPath = new Path(outputTitle);
@@ -409,7 +409,7 @@ public class ParseCorpus extends Configured implements Tool {
     // fm.setConf(config);
     // Path titlePath = fm.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
     // Text.class, NullWritable.class, true);
-    Path titlePath = FileMerger.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
+    Path titlePath = FileMerger.mergeSequenceFiles(configuration, inputTitles, outputTitleFile, numberOfMappers,
         Text.class, NullWritable.class, true);
 
     SequenceFile.Reader sequenceFileReader = null;
@@ -430,7 +430,7 @@ public class ParseCorpus extends Configured implements Tool {
     return titleIndexPath;
   }
 
-  public static class IndexTermMapper extends MapReduceBase implements
+  private static class IndexTermMapper extends MapReduceBase implements
       Mapper<Text, PairOfInts, PairOfInts, Text> {
     float minimumDocumentCount = 0;
     float maximumDocumentCount = Float.MAX_VALUE;
@@ -456,7 +456,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public static class IndexTermReducer extends MapReduceBase implements
+  private static class IndexTermReducer extends MapReduceBase implements
       Reducer<PairOfInts, Text, IntWritable, Text> {
     private IntWritable intWritable = new IntWritable();
     private int index = 0;
@@ -473,7 +473,7 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public Path indexTerm(Configuration config, String inputTerms, String outputTerm,
+  public Path indexTerm(Configuration configuration, String inputTerms, String outputTerm,
       int numberOfMappers, float minimumDocumentCount, float maximumDocumentCount) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - index term");
     sLogger.info(" - input path: " + inputTerms);
@@ -486,7 +486,7 @@ public class ParseCorpus extends Configured implements Tool {
     Path inputTermFiles = new Path(inputTerms);
     Path outputTermFile = new Path(outputTerm);
 
-    JobConf conf = new JobConf(config, ParseCorpus.class);
+    JobConf conf = new JobConf(configuration, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - index term");
@@ -543,7 +543,7 @@ public class ParseCorpus extends Configured implements Tool {
     return outputTermFile;
   }
 
-  public static class IndexDocumentMapper extends MapReduceBase implements
+  private static class IndexDocumentMapper extends MapReduceBase implements
       Mapper<Text, HMapSIW, IntWritable, Document> {
     private static Map<String, Integer> termIndex = null;
     private static Map<String, Integer> titleIndex = null;
@@ -621,8 +621,9 @@ public class ParseCorpus extends Configured implements Tool {
     }
   }
 
-  public Path indexDocument(Configuration config, String inputDocument, String outputDocument,
-      String termIndex, String titleIndex, int numberOfMappers) throws Exception {
+  public Path indexDocument(Configuration configuration, String inputDocument,
+      String outputDocument, String termIndex, String titleIndex, int numberOfMappers)
+      throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - index document");
     sLogger.info(" - input path: " + inputDocument);
     sLogger.info(" - output path: " + outputDocument);
@@ -636,7 +637,7 @@ public class ParseCorpus extends Configured implements Tool {
     Path termIndexPath = new Path(termIndex);
     Path titleIndexPath = new Path(titleIndex);
 
-    JobConf conf = new JobConf(config, ParseCorpus.class);
+    JobConf conf = new JobConf(configuration, ParseCorpus.class);
     FileSystem fs = FileSystem.get(conf);
 
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - index document");
