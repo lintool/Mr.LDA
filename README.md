@@ -20,6 +20,16 @@ Jar all the .class files and dependency packages to `Mr.LDA.jar`. This can eithe
 
 The above command should create `bin/Mr.LDA-{version}.jar` with all of the proper libraries.
 
+If you run into any memory problem like this,
+
+    Caused by: java.lang.OutOfMemoryError: Java heap space
+
+it is because the default memory usage for every mapper/reducer instance is 200MB (or some other value specified by the hadoop-site.xml for the cluster). In such case, include the following option in your command
+
+    -D mapred.child.java.opts=-Xmx2000m
+    
+and set the memory limit to 2GB (or any value that is sufficient to load in all the necessary parameter).
+
 Tokenizing and Indexing
 ----------
 
