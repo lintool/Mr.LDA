@@ -158,6 +158,9 @@ public class ParseCorpus extends Configured implements Tool {
 
       temp = value.toString();
       int index = temp.indexOf(Settings.TAB);
+      if (index < 0) {
+        throw new IndexOutOfBoundsException("Missing title information: " + value.toString());
+      }
       docTitle.set(temp.substring(0, index).trim());
       docContent = new HMapSIW();
       tokenStream = analyzer.tokenStream("contents,", new StringReader(temp.substring(index + 1)));
@@ -186,22 +189,15 @@ public class ParseCorpus extends Configured implements Tool {
 
     public void configure(JobConf conf) {
       try {
-        // String analyzerClassName = conf.get(Settings.PROPERTY_PREFIX + "parse.corpus.analyzer",
-        // StandardAnalyzer.class.getCanonicalName());
-        // Class analyzerClass = Class.forName(analyzerClassName);
-
-        // Class analyzerClass =
-        // Class.forName("org.apache.lucene.analysis.standard.StandardAnalyzer");
-
         Class<? extends Analyzer> analyzerClass = (Class<? extends Analyzer>) conf.getClass(
             Settings.PROPERTY_PREFIX + "parse.corpus.analyzer", StandardAnalyzer.class,
             Closeable.class);
 
-        sLogger.info("analyzerClass.getCanonicalName(): " + analyzerClass.getCanonicalName());
-        sLogger.info("analyzerClass.getName(): " + analyzerClass.getName());
-        sLogger.info("analyzerClass.getDeclaringClass(): " + analyzerClass.getDeclaringClass());
-        sLogger.info("analyzerClass.getSuperClass(): " + analyzerClass.getSuperclass());
-        sLogger.info("analyzerClass.getSimpleName(): " + analyzerClass.getSimpleName());
+        // sLogger.info("analyzerClass.getCanonicalName(): " + analyzerClass.getCanonicalName());
+        // sLogger.info("analyzerClass.getName(): " + analyzerClass.getName());
+        // sLogger.info("analyzerClass.getDeclaringClass(): " + analyzerClass.getDeclaringClass());
+        // sLogger.info("analyzerClass.getSuperClass(): " + analyzerClass.getSuperclass());
+        // sLogger.info("analyzerClass.getSimpleName(): " + analyzerClass.getSimpleName());
 
         Constructor<?> cons = analyzerClass.getDeclaredConstructor(new Class[] { Version.class });
         // Constructor<?> cons = analyzerClass.getDeclaredConstructor(Version.class);
@@ -209,27 +205,25 @@ public class ParseCorpus extends Configured implements Tool {
         // always get java.lang.NoSuchFieldError: LUCENE_40, but it works in local.
         analyzer = (Analyzer) cons.newInstance(Version.LUCENE_35);
 
-        /*
-         * String[] examplesChinese = { "大家 晚上 好 ，我 的 名字 叫 Ke Zhai 。",
-         * "日本 人民 要 牢牢 记住 ： “ 钓鱼岛 是 中国 神圣 不可 分割 的 领土 。 ” （ 续 ）",
-         * "中国 进出口 银行 最近 在 日本 取得 债券 信用 等级 aa - 。" };
-         * 
-         * for (String text : examplesChinese) { sLogger.info("Analyzing \"" + text + "\""); String
-         * name = analyzer.getClass().getSimpleName(); sLogger.info("\t" + name + ":");
-         * sLogger.info("\t"); TokenStream stream = analyzer.tokenStream("contents,", new
-         * StringReader(new String(text.getBytes("UTF8")))); stream.reset(); CharTermAttribute
-         * charTermAttribute = stream.addAttribute(CharTermAttribute.class); while
-         * (stream.incrementToken()) { sLogger.info("[" + charTermAttribute.toString() + "] "); }
-         * sLogger.info("\n"); }
-         */
+        // String[] examplesChinese = { "大家 晚上 好 ，我 的 名字 叫 Ke Zhai 。",
+        // "日本 人民 要 牢牢 记住 ： “ 钓鱼岛 是 中国 神圣 不可 分割 的 领土 。 ” （ 续 ）",
+        // "中国 进出口 银行 最近 在 日本 取得 债券 信用 等级 aa - 。" };
 
-        sLogger.info("analyzer.getClass().getCanonicalName(): "
-            + analyzer.getClass().getCanonicalName());
-        sLogger.info("analyzer.getClass().getName(): " + analyzer.getClass().getName());
-        sLogger.info("analyzer.getClass().getDeclaringClass(): "
-            + analyzer.getClass().getDeclaringClass());
-        sLogger.info("analyzer.getClass().getSuperClass(): " + analyzer.getClass().getSuperclass());
-        sLogger.info("analyzer.getClass().getSimpleName(): " + analyzer.getClass().getSimpleName());
+        // for (String text : examplesChinese) {
+        // sLogger.info("Analyzing \"" + text + "\"");
+        // String name = analyzer.getClass().getSimpleName();
+        // sLogger.info("\t" + name + ":");
+        // sLogger.info("\t");
+        // TokenStream stream = analyzer.tokenStream("contents,",
+        // new StringReader(new String(text.getBytes("UTF8"))));
+        // stream.reset();
+        // CharTermAttribute charTermAttribute = stream.addAttribute(CharTermAttribute.class);
+        // while (stream.incrementToken()) {
+        // sLogger.info("[" + charTermAttribute.toString() + "] ");
+        // }
+        // sLogger.info("\n");
+        // }
+
       } catch (SecurityException e) {
         sLogger.error(e.getMessage());
       } catch (NoSuchMethodException e) {
