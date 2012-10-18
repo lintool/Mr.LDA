@@ -196,7 +196,7 @@ public class DocumentMapper extends MapReduceBase implements
 
     HMapII content = value.getContent();
     if (content == null) {
-      System.err.println("Error - content was null for document " + key.toString());
+      System.err.println("Error: content was null for document " + key.toString());
       return;
     }
 

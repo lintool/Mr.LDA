@@ -1,14 +1,8 @@
 package cc.mrlda;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.GnuParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.OptionBuilder;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
@@ -31,7 +25,10 @@ import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
+import org.apache.log4j.TTCCLayout;
+import org.apache.log4j.WriterAppender;
 
 import com.google.common.base.Preconditions;
 
@@ -45,262 +42,68 @@ import edu.umd.cloud9.math.Gamma;
  * This is the entry point of vanilla MapReduce latent Dirichlet allocation package.
  * 
  * @author kzhai
- *
  */
 public class VariationalInference extends Configured implements Tool {
-  // specific settings
-  public static final String TRUNCATE_BETA_OPTION = "truncatebeta";
+  final Logger sLogger = Logger.getLogger(VariationalInference.class);
 
-  static final Logger sLogger = Logger.getLogger(VariationalInference.class);
+  VariationalInferenceOptions variationalOptions = null;
 
   static enum ParameterCounter {
     TOTAL_DOCS, TOTAL_TERMS, LOG_LIKELIHOOD, CONFIG_TIME, TRAINING_TIME, DUMMY_COUNTER,
   }
 
-  @SuppressWarnings("unchecked")
-  public int run(String[] args) throws Exception {
-
-    Options options = new Options();
-    options.addOption(Settings.HELP_OPTION, false, "print the help message");
-
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("input file or directory").isRequired().create(Settings.INPUT_OPTION));
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("output directory").isRequired().create(Settings.OUTPUT_OPTION));
-
-    // TODO: relax the term constrain
-    options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
-        .withDescription("number of terms").isRequired().create(Settings.TERM_OPTION));
-    options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
-        .withDescription("number of topics").isRequired().create(Settings.TOPIC_OPTION));
-
-    options.addOption(OptionBuilder
-        .withArgName(Settings.INTEGER_INDICATOR)
-        .hasArg()
-        .withDescription(
-            "number of iterations (default - " + Settings.DEFAULT_GLOBAL_MAXIMUM_ITERATION + ")")
-        .create(Settings.ITERATION_OPTION));
-    options
-        .addOption(OptionBuilder
-            .withArgName(Settings.INTEGER_INDICATOR)
-            .hasArg()
-            .withDescription(
-                "number of mappers (default - " + Settings.DEFAULT_NUMBER_OF_MAPPERS + ")")
-            .create(Settings.MAPPER_OPTION));
-    options.addOption(OptionBuilder
-        .withArgName(Settings.INTEGER_INDICATOR)
-        .hasArg()
-        .withDescription(
-            "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
-        .create(Settings.REDUCER_OPTION));
-
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArgs()
-        .withDescription("run program in inference mode, i.e. test held-out likelihood")
-        .create(Settings.INFERENCE_MODE_OPTION));
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArgs()
-        .withDescription("seed informed prior").create(InformedPrior.INFORMED_PRIOR_OPTION));
-    options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
-        .withDescription("the iteration/index of current model parameters")
-        .create(Settings.RESUME_OPTION));
-
-    options.addOption(Settings.RANDOM_START_GAMMA_OPTION, false,
-        "start gamma from random point every iteration");
-
-    // options.addOption(FileMerger.LOCAL_MERGE_OPTION, false,
-    // "merge output files and parameters locally, recommend for small scale cluster");
-    options.addOption(Settings.DIRECT_EMIT, false,
-        "disable in-mapper-combiner, enable this option if memory is limited");
-
-    // "minimum memory threshold is " + Settings.MEMORY_THRESHOLD + " bytes and up to top " +
-    // Settings.TOP_WORDS_FOR_CACHING + " frequent words"
-
-    // options.addOption(Settings.TRUNCATE_BETA_OPTION, false,
-    // "enable beta truncation of top 1000");
-
-    options.addOption(OptionBuilder
-        .withArgName(Settings.INTEGER_INDICATOR)
-        .hasArg()
-        .withDescription(
-            "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
-        .create(VariationalInference.TRUNCATE_BETA_OPTION));
-
-    boolean directEmit = false;
-    boolean truncateBeta = false;
-
-    String inputPath = null;
-    String outputPath = null;
-
-    boolean localMerge = FileMerger.LOCAL_MERGE;
-    boolean randomStartGamma = Settings.RANDOM_START_GAMMA;
-
-    int numberOfTopics = 0;
-    int numberOfIterations = Settings.DEFAULT_GLOBAL_MAXIMUM_ITERATION;
-    int mapperTasks = Settings.DEFAULT_NUMBER_OF_MAPPERS;
-    int reducerTasks = Settings.DEFAULT_NUMBER_OF_REDUCERS;
-
-    int numberOfTerms = 0;
-
-    boolean resume = Settings.RESUME;
-    String modelPath = null;
-    int snapshotIndex = 0;
-    boolean training = Settings.LEARNING_MODE;
-
-    Path informedPrior = null;
-
-    Configuration configuration = getConf();
-    CommandLineParser parser = new GnuParser();
-    HelpFormatter formatter = new HelpFormatter();
-    try {
-      CommandLine line = parser.parse(options, args);
-
-      if (line.hasOption(Settings.HELP_OPTION)) {
-        ToolRunner.printGenericCommandUsage(System.out);
-        formatter.printHelp(VariationalInference.class.getName(), options);
-        System.exit(0);
-      }
-
-      if (line.hasOption(Settings.INPUT_OPTION)) {
-        inputPath = line.getOptionValue(Settings.INPUT_OPTION);
-      }
-
-      if (line.hasOption(Settings.OUTPUT_OPTION)) {
-        outputPath = line.getOptionValue(Settings.OUTPUT_OPTION);
-
-        if (!outputPath.endsWith(Path.SEPARATOR)) {
-          outputPath += Path.SEPARATOR;
-        }
-      }
-
-      if (line.hasOption(Settings.ITERATION_OPTION)) {
-        if (training) {
-          numberOfIterations = Integer.parseInt(line.getOptionValue(Settings.ITERATION_OPTION));
-          Preconditions.checkArgument(numberOfIterations > 0, "Illegal settings for "
-              + Settings.ITERATION_OPTION + " option: must be strictly positive...");
-        } else {
-          sLogger.info("Warning: " + Settings.ITERATION_OPTION + " ignored in testing mode...");
-        }
-      }
-
-      if (line.hasOption(Settings.RESUME_OPTION)) {
-        snapshotIndex = Integer.parseInt(line.getOptionValue(Settings.RESUME_OPTION));
-        if (!line.hasOption(Settings.INFERENCE_MODE_OPTION)) {
-          resume = true;
-          Preconditions.checkArgument(snapshotIndex < numberOfIterations, "Option "
-              + Settings.ITERATION_OPTION + " and option " + Settings.RESUME_OPTION
-              + " do not agree with each other: option " + Settings.ITERATION_OPTION
-              + " must be strictly larger than option " + Settings.RESUME_OPTION + "...");
-        }
-      }
-
-      if (line.hasOption(Settings.INFERENCE_MODE_OPTION)) {
-        if (!line.hasOption(Settings.RESUME_OPTION)) {
-          throw new ParseException("Model index missing: " + Settings.RESUME_OPTION
-              + " was not initialized...");
-        }
-
-        modelPath = line.getOptionValue(Settings.INFERENCE_MODE_OPTION);
-        if (!modelPath.endsWith(Path.SEPARATOR)) {
-          modelPath += Path.SEPARATOR;
-        }
-        training = false;
-        resume = false;
-      }
-
-      if (line.hasOption(FileMerger.LOCAL_MERGE_OPTION)) {
-        if (training) {
-          // TODO: local merge does not handle compressed data.
-          // localMerge = true;
-        } else {
-          sLogger.info("Warning: " + FileMerger.LOCAL_MERGE_OPTION + " ignored in testing mode...");
-        }
-      }
-
-      if (line.hasOption(Settings.DIRECT_EMIT)) {
-        directEmit = true;
-      }
-
-      if (line.hasOption(VariationalInference.TRUNCATE_BETA_OPTION)) {
-        if (training) {
-          truncateBeta = true;
-        } else {
-          sLogger.info("Warning: " + VariationalInference.TRUNCATE_BETA_OPTION
-              + " ignored in testing mode...");
-        }
-      }
-
-      if (line.hasOption(Settings.TOPIC_OPTION)) {
-        numberOfTopics = Integer.parseInt(line.getOptionValue(Settings.TOPIC_OPTION));
-      } else {
-        throw new ParseException("Parsing failed due to " + Settings.TOPIC_OPTION
-            + " not initialized...");
-      }
-      Preconditions.checkArgument(numberOfTopics > 0, "Illegal settings for "
-          + Settings.TOPIC_OPTION + " option: must be strictly positive...");
-
-      // TODO: need to relax this contrain in the future
-      if (line.hasOption(Settings.TERM_OPTION)) {
-        numberOfTerms = Integer.parseInt(line.getOptionValue(Settings.TERM_OPTION));
-      }
-      Preconditions.checkArgument(numberOfTerms > 0, "Illegal settings for " + Settings.TERM_OPTION
-          + " option: must be strictly positive...");
-
-      if (line.hasOption(Settings.RANDOM_START_GAMMA_OPTION)) {
-        if (training) {
-          randomStartGamma = true;
-        } else {
-          sLogger.info("Warning: " + Settings.RANDOM_START_GAMMA_OPTION
-              + " ignored in testing mode...");
-        }
-      }
-
-      if (line.hasOption(InformedPrior.INFORMED_PRIOR_OPTION)) {
-        if (training) {
-          informedPrior = new Path(line.getOptionValue(InformedPrior.INFORMED_PRIOR_OPTION));
-        } else {
-          sLogger.info("Warning: " + InformedPrior.INFORMED_PRIOR_OPTION
-              + " ignored in test mode...");
-        }
-      }
-
-      if (line.hasOption(Settings.MAPPER_OPTION)) {
-        mapperTasks = Integer.parseInt(line.getOptionValue(Settings.MAPPER_OPTION));
-      }
-      Preconditions.checkArgument(mapperTasks > 0, "Illegal settings for " + Settings.MAPPER_OPTION
-          + " option: must be strictly positive...");
-
-      if (line.hasOption(Settings.REDUCER_OPTION)) {
-        if (training) {
-          reducerTasks = Integer.parseInt(line.getOptionValue(Settings.REDUCER_OPTION));
-          Preconditions.checkArgument(reducerTasks > 0, "Illegal settings for "
-              + Settings.REDUCER_OPTION + " option: must be strictly positive...");
-        } else {
-          reducerTasks = 0;
-          sLogger.info("Warning: " + Settings.REDUCER_OPTION + " ignored in test mode...");
-        }
-      }
-    } catch (ParseException pe) {
-      System.err.println(pe.getMessage());
-      ToolRunner.printGenericCommandUsage(System.err);
-      formatter.printHelp(VariationalInference.class.getName(), options);
-      System.exit(0);
-    } catch (NumberFormatException nfe) {
-      System.err.println(nfe.getMessage());
-      System.exit(0);
-    } catch (IllegalArgumentException iae) {
-      System.err.println(iae.getMessage());
-      System.exit(0);
-    }
-
-    return run(configuration, inputPath, outputPath, numberOfTopics, numberOfTerms,
-        numberOfIterations, mapperTasks, reducerTasks, localMerge, training, randomStartGamma,
-        resume, informedPrior, modelPath, snapshotIndex, directEmit, truncateBeta);
+  public VariationalInference() {
+    super();
   }
 
-  private int run(Configuration configuration, String inputPath, String outputPath,
-      int numberOfTopics, int numberOfTerms, int numberOfIterations, int mapperTasks,
-      int reducerTasks, boolean localMerge, boolean training, boolean randomStartGamma,
-      boolean resume, Path informedPrior, String modelPath, int snapshotIndex, boolean directEmit,
-      boolean truncateBeta) throws Exception {
+  public VariationalInference(VariationalInferenceOptions variationalOptions) {
+    super();
+    this.variationalOptions = variationalOptions;
+  }
+
+  @SuppressWarnings("unchecked")
+  public int run(String[] args) throws Exception {
+    if (variationalOptions == null) {
+      variationalOptions = new VariationalInferenceOptions(args);
+    }
+    Appender loggingAppender = new WriterAppender(new TTCCLayout(), new FileOutputStream(
+        VariationalInference.class.getSimpleName() + ".log." + variationalOptions.toString() + "."
+            + VariationalInferenceOptions.getDateTime(), true));
+    sLogger.addAppender(loggingAppender);
+
+    return run(getConf(), variationalOptions);
+
+    // return run(configuration, inputPath, outputPath, numberOfTopics, numberOfTerms,
+    // numberOfIterations, mapperTasks, reducerTasks, localMerge, training, randomStartGamma,
+    // resume, informedPrior, modelPath, snapshotIndex, directEmit, truncateBeta);
+  }
+
+  // private int run(Configuration configuration, VariationalOptions variationalOptions, String
+  // inputPath, String outputPath,
+  // int numberOfTopics, int numberOfTerms, int numberOfIterations, int mapperTasks,
+  // int reducerTasks, boolean localMerge, boolean training, boolean randomStartGamma,
+  // boolean resume, Path informedPrior, String modelPath, int snapshotIndex, boolean directEmit,
+  // boolean truncateBeta) throws Exception {
+
+  private int run(Configuration configuration, VariationalInferenceOptions variationalOptions)
+      throws Exception {
+    String inputPath = variationalOptions.getInputPath();
+    String outputPath = variationalOptions.getOutputPath();
+    int numberOfTopics = variationalOptions.getNumberOfTopics();
+    int numberOfTerms = variationalOptions.getNumberOfTerms();
+    int numberOfIterations = variationalOptions.getNumberOfIterations();
+    int mapperTasks = variationalOptions.getMapperTasks();
+    int reducerTasks = variationalOptions.getReducerTasks();
+    boolean localMerge = variationalOptions.isLocalMerge();
+    boolean training = variationalOptions.isTraining();
+    boolean randomStartGamma = variationalOptions.isRandomStartGamma();
+    boolean resume = variationalOptions.isResume();
+    Path informedPrior = variationalOptions.getInformedPrior();
+    String modelPath = variationalOptions.getModelPath();
+    int snapshotIndex = variationalOptions.getSnapshotIndex();
+    boolean directEmit = variationalOptions.isDirectEmit();
+    boolean truncateBeta = variationalOptions.isTruncateBeta();
+
     sLogger.info("Tool: " + VariationalInference.class.getSimpleName());
     sLogger.info(" - input path: " + inputPath);
     sLogger.info(" - output path: " + outputPath);
@@ -596,7 +399,8 @@ public class VariationalInference extends Configured implements Tool {
   }
 
   /**
-   * This method updates the hyperparameter alpha of the topic Dirichlet.
+   * This method updates the hyper-parameter alpha vector of the topic Dirichlet prior, which is an
+   * asymmetric Dirichlet prior.
    * 
    * @param numberOfTopics the number of topics
    * @param numberOfDocuments the number of documents in this corpus
@@ -709,7 +513,8 @@ public class VariationalInference extends Configured implements Tool {
   }
 
   /**
-   * This method imports alpha vectory from a sequence file 
+   * This method imports alpha vector from a sequence file.
+   * 
    * @param sequenceFileReader the reader for a sequence file
    * @param numberOfTopics number of topics
    * @return
@@ -738,6 +543,7 @@ public class VariationalInference extends Configured implements Tool {
 
   /**
    * This methods export alpha vector to a sequence file.
+   * 
    * @param sequenceFileWriter the writer for sequence file
    * @param alpha the alpha vector get exported
    * @throws IOException

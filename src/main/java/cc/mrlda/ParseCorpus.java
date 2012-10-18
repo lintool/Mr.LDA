@@ -1,20 +1,16 @@
 package cc.mrlda;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.StringReader;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeSet;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.GnuParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.OptionBuilder;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
@@ -41,14 +37,13 @@ import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
-import org.apache.hadoop.util.GenericOptionsParser;
-
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.TermAttribute;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Version;
 
 import com.google.common.base.Preconditions;
@@ -71,129 +66,24 @@ public class ParseCorpus extends Configured implements Tool {
   public static final String TITLE = "title";
   public static final String INDEX = "index";
 
-  public static final String MINIMUM_DOCUMENT_FREQUENCY = "minimumdocumentfrequency";
-  public static final String MAXIMUM_DOCUMENT_FREQUENCY = "maximumdocumentfrequency";
-  public static final String MINIMUM_TERM_FREQUENCY = "minimumtermfrequency";
-  public static final String MAXIMUM_TERM_FREQUENCY = "maximumtermfrequency";
-
-  public static final float DEFAULT_MINIMUM_DOCUMENT_FREQUENCY = 0.0f;
-  public static final float DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY = 1.0f;
-  public static final float DEFAULT_MINIMUM_TERM_FREQUENCY = 0.0f;
-  public static final float DEFAULT_MAXIMUM_TERM_FREQUENCY = 1.0f;
-
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
+    ParseCorpusOptions parseCorpusOptions = new ParseCorpusOptions(args);
 
-    Options options = new Options();
+    return run(getConf(), parseCorpusOptions);
+  }
 
-    options.addOption(Settings.HELP_OPTION, false, "print the help message");
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("input file(s) or directory").isRequired().create(Settings.INPUT_OPTION));
-    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("output directory").isRequired().create(Settings.OUTPUT_OPTION));
-    options
-        .addOption(FileMerger.LOCAL_MERGE_OPTION, false,
-            "merge files locally, recommend for small scale cluster with a limited number of documents");
+  private int run(Configuration configuration, ParseCorpusOptions parseCorpusOptions)
+      throws Exception {
 
-    options
-        .addOption(OptionBuilder
-            .withArgName(Settings.INTEGER_INDICATOR)
-            .hasArg()
-            .withDescription(
-                "number of mappers (default - " + Settings.DEFAULT_NUMBER_OF_MAPPERS + ")")
-            .create(Settings.MAPPER_OPTION));
-    options.addOption(OptionBuilder
-        .withArgName(Settings.INTEGER_INDICATOR)
-        .hasArg()
-        .withDescription(
-            "number of reducers (default - " + Settings.DEFAULT_NUMBER_OF_REDUCERS + ")")
-        .create(Settings.REDUCER_OPTION));
-
-    options.addOption(OptionBuilder
-        .withArgName(Settings.FLOAT_INDICATOR)
-        .hasArg()
-        .withDescription(
-            "minimum document frequency (default - " + DEFAULT_MINIMUM_DOCUMENT_FREQUENCY + ")")
-        .create(MINIMUM_DOCUMENT_FREQUENCY));
-    options.addOption(OptionBuilder
-        .withArgName(Settings.FLOAT_INDICATOR)
-        .hasArg()
-        .withDescription(
-            "maximum document frequency (default - " + DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY + ")")
-        .create(MAXIMUM_DOCUMENT_FREQUENCY));
-
-    String inputPath = null;
-    String outputPath = null;
-    int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
-    int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
-    float maximumDocumentFrequency = DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY;
-    float minimumDocumentFrequency = DEFAULT_MINIMUM_DOCUMENT_FREQUENCY;
-    boolean localMerge = FileMerger.LOCAL_MERGE;
-
-    Configuration configuration = this.getConf();
-    CommandLineParser parser = new GnuParser();
-
-    HelpFormatter formatter = new HelpFormatter();
-    try {
-      CommandLine line = parser.parse(options, args);
-
-      if (line.hasOption(Settings.HELP_OPTION)) {
-        formatter.printHelp(ParseCorpus.class.getName(), options);
-        System.exit(0);
-      }
-
-      if (line.hasOption(Settings.INPUT_OPTION)) {
-        inputPath = line.getOptionValue(Settings.INPUT_OPTION);
-      } else {
-        throw new ParseException("Parsing failed due to " + Settings.INPUT_OPTION
-            + " not initialized...");
-      }
-
-      if (line.hasOption(Settings.OUTPUT_OPTION)) {
-        outputPath = line.getOptionValue(Settings.OUTPUT_OPTION);
-      } else {
-        throw new ParseException("Parsing failed due to " + Settings.OUTPUT_OPTION
-            + " not initialized...");
-      }
-
-      if (line.hasOption(FileMerger.LOCAL_MERGE_OPTION)) {
-        localMerge = true;
-      }
-
-      if (line.hasOption(Settings.MAPPER_OPTION)) {
-        numberOfMappers = Integer.parseInt(line.getOptionValue(Settings.MAPPER_OPTION));
-      }
-
-      if (line.hasOption(Settings.REDUCER_OPTION)) {
-        numberOfReducers = Integer.parseInt(line.getOptionValue(Settings.REDUCER_OPTION));
-      }
-
-      if (line.hasOption(MINIMUM_DOCUMENT_FREQUENCY)) {
-        minimumDocumentFrequency = Float
-            .parseFloat(line.getOptionValue(MINIMUM_DOCUMENT_FREQUENCY));
-        Preconditions.checkArgument(minimumDocumentFrequency >= 0 && minimumDocumentFrequency <= 1,
-            "Illegal settings for " + MINIMUM_DOCUMENT_FREQUENCY + " option: must be in [0, 1]...");
-      }
-
-      if (line.hasOption(MAXIMUM_DOCUMENT_FREQUENCY)) {
-        maximumDocumentFrequency = Float
-            .parseFloat(line.getOptionValue(MAXIMUM_DOCUMENT_FREQUENCY));
-        Preconditions.checkArgument(maximumDocumentFrequency >= 0 && maximumDocumentFrequency <= 1,
-            "Illegal settings for " + MAXIMUM_DOCUMENT_FREQUENCY + " option: must be in [0, 1]...");
-      }
-
-      Preconditions.checkArgument(minimumDocumentFrequency < maximumDocumentFrequency, "Option "
-          + MAXIMUM_DOCUMENT_FREQUENCY + " and option " + MINIMUM_DOCUMENT_FREQUENCY
-          + " do not agree with each other: option " + MAXIMUM_DOCUMENT_FREQUENCY
-          + " must be strictly larger than option " + MINIMUM_DOCUMENT_FREQUENCY + "...");
-    } catch (ParseException pe) {
-      System.err.println(pe.getMessage());
-      formatter.printHelp(ParseCorpus.class.getName(), options);
-      System.exit(0);
-    } catch (NumberFormatException nfe) {
-      System.err.println(nfe.getMessage());
-      System.exit(0);
-    }
+    String inputPath = parseCorpusOptions.getInputPath();
+    String outputPath = parseCorpusOptions.getOutputPath();
+    Class<? extends Analyzer> analyzerClass = parseCorpusOptions.getAnalyzerClass();
+    int numberOfMappers = parseCorpusOptions.getNumberOfMappers();
+    int numberOfReducers = parseCorpusOptions.getNumberOfReducers();
+    float maximumDocumentFrequency = parseCorpusOptions.getMaximumDocumentFrequency();
+    float minimumDocumentFrequency = parseCorpusOptions.getMinimumDocumentFrequency();
+    boolean localMerge = parseCorpusOptions.isLocalMerge();
 
     if (!outputPath.endsWith(Path.SEPARATOR)) {
       outputPath += Path.SEPARATOR;
@@ -205,7 +95,7 @@ public class ParseCorpus extends Configured implements Tool {
     fs.delete(new Path(outputPath), true);
 
     try {
-      int[] corpusStatistics = tokenizeDocument(configuration, inputPath, indexPath,
+      int[] corpusStatistics = tokenizeDocument(configuration, inputPath, indexPath, analyzerClass,
           numberOfMappers, numberOfReducers);
       int documentCount = corpusStatistics[0];
       int termsCount = corpusStatistics[1];
@@ -249,9 +139,9 @@ public class ParseCorpus extends Configured implements Tool {
     private OutputCollector<Text, NullWritable> outputTitle = null;
     private MultipleOutputs multipleOutputs = null;
 
-    // TODO: make this analyzer as an option to the user
-    private static final StandardAnalyzer standardAnalyzer = new StandardAnalyzer(Version.LUCENE_35);
-    private TokenStream stream = null;
+    // private static Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_40);
+    private static Analyzer analyzer = null;
+    private TokenStream tokenStream = null;
 
     private Text docTitle = new Text();
     private HMapSIW docContent = null;
@@ -270,11 +160,15 @@ public class ParseCorpus extends Configured implements Tool {
       int index = temp.indexOf(Settings.TAB);
       docTitle.set(temp.substring(0, index).trim());
       docContent = new HMapSIW();
-      stream = standardAnalyzer.tokenStream("contents,",
-          new StringReader(temp.substring(index + 1)));
-      TermAttribute termAttribute = stream.addAttribute(TermAttribute.class);
-      while (stream.incrementToken()) {
-        docContent.increment(termAttribute.term());
+      tokenStream = analyzer.tokenStream("contents,", new StringReader(temp.substring(index + 1)));
+      try {
+        tokenStream.reset();
+        CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
+        while (tokenStream.incrementToken()) {
+          docContent.increment(charTermAttribute.toString());
+        }
+      } finally {
+        tokenStream.close();
       }
       outputTitle.collect(docTitle, NullWritable.get());
       outputDocument.collect(docTitle, docContent);
@@ -291,10 +185,70 @@ public class ParseCorpus extends Configured implements Tool {
     }
 
     public void configure(JobConf conf) {
+      try {
+        // String analyzerClassName = conf.get(Settings.PROPERTY_PREFIX + "parse.corpus.analyzer",
+        // StandardAnalyzer.class.getCanonicalName());
+        // Class analyzerClass = Class.forName(analyzerClassName);
+
+        // Class analyzerClass =
+        // Class.forName("org.apache.lucene.analysis.standard.StandardAnalyzer");
+
+        Class<? extends Analyzer> analyzerClass = (Class<? extends Analyzer>) conf.getClass(
+            Settings.PROPERTY_PREFIX + "parse.corpus.analyzer", StandardAnalyzer.class,
+            Closeable.class);
+
+        sLogger.info("analyzerClass.getCanonicalName(): " + analyzerClass.getCanonicalName());
+        sLogger.info("analyzerClass.getName(): " + analyzerClass.getName());
+        sLogger.info("analyzerClass.getDeclaringClass(): " + analyzerClass.getDeclaringClass());
+        sLogger.info("analyzerClass.getSuperClass(): " + analyzerClass.getSuperclass());
+        sLogger.info("analyzerClass.getSimpleName(): " + analyzerClass.getSimpleName());
+
+        Constructor<?> cons = analyzerClass.getDeclaredConstructor(new Class[] { Version.class });
+        // Constructor<?> cons = analyzerClass.getDeclaredConstructor(Version.class);
+        // TODO: for some reason, bespin cluster does not support Lucene 4.0.0 at this point ---
+        // always get java.lang.NoSuchFieldError: LUCENE_40, but it works in local.
+        analyzer = (Analyzer) cons.newInstance(Version.LUCENE_35);
+
+        /*
+         * String[] examplesChinese = { "大家 晚上 好 ，我 的 名字 叫 Ke Zhai 。",
+         * "日本 人民 要 牢牢 记住 ： “ 钓鱼岛 是 中国 神圣 不可 分割 的 领土 。 ” （ 续 ）",
+         * "中国 进出口 银行 最近 在 日本 取得 债券 信用 等级 aa - 。" };
+         * 
+         * for (String text : examplesChinese) { sLogger.info("Analyzing \"" + text + "\""); String
+         * name = analyzer.getClass().getSimpleName(); sLogger.info("\t" + name + ":");
+         * sLogger.info("\t"); TokenStream stream = analyzer.tokenStream("contents,", new
+         * StringReader(new String(text.getBytes("UTF8")))); stream.reset(); CharTermAttribute
+         * charTermAttribute = stream.addAttribute(CharTermAttribute.class); while
+         * (stream.incrementToken()) { sLogger.info("[" + charTermAttribute.toString() + "] "); }
+         * sLogger.info("\n"); }
+         */
+
+        sLogger.info("analyzer.getClass().getCanonicalName(): "
+            + analyzer.getClass().getCanonicalName());
+        sLogger.info("analyzer.getClass().getName(): " + analyzer.getClass().getName());
+        sLogger.info("analyzer.getClass().getDeclaringClass(): "
+            + analyzer.getClass().getDeclaringClass());
+        sLogger.info("analyzer.getClass().getSuperClass(): " + analyzer.getClass().getSuperclass());
+        sLogger.info("analyzer.getClass().getSimpleName(): " + analyzer.getClass().getSimpleName());
+      } catch (SecurityException e) {
+        sLogger.error(e.getMessage());
+      } catch (NoSuchMethodException e) {
+        sLogger.error(e.getMessage());
+      } catch (IllegalArgumentException e) {
+        sLogger.error(e.getMessage());
+      } catch (InstantiationException e) {
+        sLogger.error(e.getMessage());
+      } catch (IllegalAccessException e) {
+        sLogger.error(e.getMessage());
+      } catch (InvocationTargetException e) {
+        sLogger.error(e.getMessage());
+      }
+
       multipleOutputs = new MultipleOutputs(conf);
     }
 
     public void close() throws IOException {
+      // analyzer.close();
       multipleOutputs.close();
     }
   }
@@ -342,6 +296,8 @@ public class ParseCorpus extends Configured implements Tool {
   }
 
   public int[] tokenizeDocument(Configuration configuration, String inputPath, String outputPath,
+      Class<? extends Analyzer> analyzerClass,
+      // String analyzerClass,
       int numberOfMappers, int numberOfReducers) throws Exception {
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName() + " - tokenize document");
     sLogger.info(" - input path: " + inputPath);
@@ -351,12 +307,16 @@ public class ParseCorpus extends Configured implements Tool {
 
     JobConf conf = new JobConf(configuration, ParseCorpus.class);
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
-    FileSystem fs = FileSystem.get(conf);
 
     MultipleOutputs.addMultiNamedOutput(conf, DOCUMENT, SequenceFileOutputFormat.class, Text.class,
         HMapSIW.class);
     MultipleOutputs.addMultiNamedOutput(conf, TITLE, SequenceFileOutputFormat.class, Text.class,
         NullWritable.class);
+
+    conf.setClass(Settings.PROPERTY_PREFIX + "parse.corpus.analyzer", analyzerClass,
+        Closeable.class);
+
+    // conf.set(Settings.PROPERTY_PREFIX + "parse.corpus.analyzer", analyzerClass);
 
     conf.setNumMapTasks(numberOfMappers);
     conf.setNumReduceTasks(numberOfReducers);
@@ -409,8 +369,8 @@ public class ParseCorpus extends Configured implements Tool {
     // fm.setConf(config);
     // Path titlePath = fm.mergeSequenceFiles(inputTitles, outputTitleFile, numberOfMappers,
     // Text.class, NullWritable.class, true);
-    Path titlePath = FileMerger.mergeSequenceFiles(configuration, inputTitles, outputTitleFile, numberOfMappers,
-        Text.class, NullWritable.class, true);
+    Path titlePath = FileMerger.mergeSequenceFiles(configuration, inputTitles, outputTitleFile,
+        numberOfMappers, Text.class, NullWritable.class, true);
 
     SequenceFile.Reader sequenceFileReader = null;
     SequenceFile.Writer sequenceFileWriter = null;
@@ -589,7 +549,7 @@ public class ParseCorpus extends Configured implements Tool {
 
           for (Path path : inputFiles) {
             try {
-              sLogger.info("Checking file in dCache: " + path.getName());
+              sLogger.info("Checking file in distributed cache: " + path.getName());
               sequenceFileReader = new SequenceFile.Reader(FileSystem.getLocal(conf), path, conf);
 
               if (path.getName().startsWith(TERM)) {
@@ -701,7 +661,7 @@ public class ParseCorpus extends Configured implements Tool {
     Text text = new Text();
     while (sequenceFileReader.next(intWritable, text)) {
       if (intWritable.get() % 100000 == 0) {
-        sLogger.info("Imported val " + intWritable.toString() + " of length " + text.getLength());
+        sLogger.info("Imported term " + text.toString() + " with index " + intWritable.toString());
       }
       hashMap.put(text.toString(), intWritable.get());
     }
