@@ -1,6 +1,5 @@
 package cc.mrlda;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
@@ -25,10 +24,7 @@ import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.lib.MultipleOutputs;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
-import org.apache.log4j.TTCCLayout;
-import org.apache.log4j.WriterAppender;
 
 import com.google.common.base.Preconditions;
 
@@ -46,32 +42,18 @@ import edu.umd.cloud9.math.Gamma;
 public class VariationalInference extends Configured implements Tool {
   final Logger sLogger = Logger.getLogger(VariationalInference.class);
 
-  VariationalInferenceOptions variationalOptions = null;
-
   static enum ParameterCounter {
     TOTAL_DOCS, TOTAL_TERMS, LOG_LIKELIHOOD, CONFIG_TIME, TRAINING_TIME, DUMMY_COUNTER,
   }
 
-  public VariationalInference() {
-    super();
-  }
-
-  public VariationalInference(VariationalInferenceOptions variationalOptions) {
-    super();
-    this.variationalOptions = variationalOptions;
-  }
-
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
-    if (variationalOptions == null) {
-      variationalOptions = new VariationalInferenceOptions(args);
-    }
-    Appender loggingAppender = new WriterAppender(new TTCCLayout(), new FileOutputStream(
-        VariationalInference.class.getSimpleName() + ".log." + variationalOptions.toString() + "."
-            + VariationalInferenceOptions.getDateTime(), true));
-    sLogger.addAppender(loggingAppender);
+    // Appender loggingAppender = new WriterAppender(new TTCCLayout(), new FileOutputStream(
+    // VariationalInference.class.getSimpleName() + ".log." + variationalOptions.toString() + "."
+    // + VariationalInferenceOptions.getDateTime(), true));
+    // sLogger.addAppender(loggingAppender);
 
-    return run(getConf(), variationalOptions);
+    return run(getConf(), new VariationalInferenceOptions(args));
 
     // return run(configuration, inputPath, outputPath, numberOfTopics, numberOfTerms,
     // numberOfIterations, mapperTasks, reducerTasks, localMerge, training, randomStartGamma,
@@ -172,6 +154,7 @@ public class VariationalInference extends Configured implements Tool {
         alphaDir = new Path(alphaPath + 0);
         for (int i = 0; i < alphaVector.length; i++) {
           alphaVector[i] = Math.random();
+          // alphaVector[i] = 0.01;
         }
         try {
           sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,

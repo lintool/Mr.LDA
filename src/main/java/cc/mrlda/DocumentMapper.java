@@ -317,7 +317,7 @@ public class DocumentMapper extends MapReduceBase implements
         itr = content.keySet().iterator();
         while (itr.hasNext()) {
           int termID = itr.next();
-          // only get the phi's in of current document
+          // only get the phi's of current document
           logPhi = logPhiTable.get(termID);
           for (int i = 0; i < numberOfTopics; i++) {
             outputValue.set(logPhi[i]);
@@ -520,9 +520,11 @@ public class DocumentMapper extends MapReduceBase implements
           vector[topicIndex] = logBetaValue;
           beta.put(termIndex, vector);
         } else {
-          // beta.get(termIndex)[topicIndex] = betaValue;
-          beta.get(termIndex)[topicIndex] = LogMath.add(logBetaValue,
-              beta.get(termIndex)[topicIndex]);
+          Preconditions.checkArgument(beta.get(termIndex)[topicIndex] == 0,
+              "Dual initialization for term " + termIndex + " in topic " + topicIndex + "...");
+          beta.get(termIndex)[topicIndex] = logBetaValue;
+          // beta.get(termIndex)[topicIndex] = LogMath.add(logBetaValue,
+          // beta.get(termIndex)[topicIndex]);
         }
       }
     }

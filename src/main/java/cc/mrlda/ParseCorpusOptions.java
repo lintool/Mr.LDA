@@ -24,9 +24,6 @@ public class ParseCorpusOptions {
 
   public static final String ANALYZER = "analyzer";
 
-  // public static final String INCLUDE_TITLE_OPTION = "includetitle";
-  // public static final boolean INCLUDE_TITLE = false;
-
   public static final String MINIMUM_DOCUMENT_FREQUENCY = "minimumdocumentfrequency";
   public static final String MAXIMUM_DOCUMENT_FREQUENCY = "maximumdocumentfrequency";
   public static final String MINIMUM_TERM_FREQUENCY = "minimumtermfrequency";
@@ -58,9 +55,6 @@ public class ParseCorpusOptions {
     options.addOption(OptionBuilder.withArgName(Settings.CLASS_INDICATOR).hasArg()
         .withDescription("analyzer class in Lucene (default - " + StandardAnalyzer.class + ")")
         .create(ANALYZER));
-
-    // options.addOption(INCLUDE_TITLE_OPTION, false,
-    // "include title in corpus, seperate from the content by a TAB charactor");
 
     options
         .addOption(FileMerger.LOCAL_MERGE_OPTION, false,
