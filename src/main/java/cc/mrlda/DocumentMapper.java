@@ -32,10 +32,10 @@ import edu.umd.cloud9.util.map.HMapIV;
 public class DocumentMapper extends MapReduceBase implements
     Mapper<IntWritable, Document, PairOfInts, DoubleWritable> {
 
-  boolean directEmit = false;
-  HMapIV<double[]> totalPhi = null;
-  double[] totalAlphaSufficientStatistics;
-  OutputCollector<PairOfInts, DoubleWritable> outputCollector;
+  private boolean directEmit = false;
+  private HMapIV<double[]> totalPhi = null;
+  private double[] totalAlphaSufficientStatistics;
+  private OutputCollector<PairOfInts, DoubleWritable> outputCollector;
 
   private long configurationTime = 0;
   private long trainingTime = 0;
@@ -56,8 +56,8 @@ public class DocumentMapper extends MapReduceBase implements
   private PairOfInts outputKey = new PairOfInts();
   private DoubleWritable outputValue = new DoubleWritable();
 
-  private static MultipleOutputs multipleOutputs;
-  private static OutputCollector<IntWritable, Document> outputDocument;
+  private MultipleOutputs multipleOutputs;
+  private OutputCollector<IntWritable, Document> outputDocument;
 
   private double[] tempLogBeta = null;
 

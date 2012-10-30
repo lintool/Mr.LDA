@@ -153,8 +153,8 @@ public class VariationalInference extends Configured implements Tool {
         // initialize alpha vector randomly - if it doesn't already exist
         alphaDir = new Path(alphaPath + 0);
         for (int i = 0; i < alphaVector.length; i++) {
-          alphaVector[i] = Math.random();
-          // alphaVector[i] = 0.01;
+          // alphaVector[i] = Math.random();
+          alphaVector[i] = 0.01;
         }
         try {
           sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
@@ -278,6 +278,7 @@ public class VariationalInference extends Configured implements Tool {
 
         // update alpha's
         try {
+
           // load old alpha's into the system
           sequenceFileReader = new SequenceFile.Reader(fs, alphaDir, conf);
           alphaVector = importAlpha(sequenceFileReader, numberOfTopics);
@@ -290,10 +291,11 @@ public class VariationalInference extends Configured implements Tool {
           sLogger.info("Successfully import alpha sufficient statistics tokens from file "
               + alphaSufficientStatisticsDir);
 
+          // TODO: add option to stop alpha updating
           // update alpha
-          alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
-              alphaSufficientStatistics);
-          sLogger.info("Successfully update new alpha vector.");
+          // alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
+          // alphaSufficientStatistics);
+          // sLogger.info("Successfully update new alpha vector.");
 
           // output the new alpha's to the system
           alphaDir = new Path(alphaPath + (iterationCount + 1));
@@ -301,10 +303,10 @@ public class VariationalInference extends Configured implements Tool {
               DoubleWritable.class);
           exportAlpha(sequenceFileWriter, alphaVector);
           sLogger.info("Successfully export new alpha vector to file " + alphaDir);
-
+        } finally {
           // remove all the alpha sufficient statistics
           fs.deleteOnExit(alphaSufficientStatisticsDir);
-        } finally {
+
           IOUtils.closeStream(sequenceFileReader);
           IOUtils.closeStream(sequenceFileWriter);
         }

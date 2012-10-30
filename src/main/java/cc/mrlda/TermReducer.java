@@ -25,6 +25,7 @@ import com.google.common.base.Preconditions;
 import edu.umd.cloud9.io.map.HMapIDW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.pair.PairOfInts;
+import edu.umd.cloud9.math.Gamma;
 import edu.umd.cloud9.math.LogMath;
 import edu.umd.cloud9.util.map.HMapIV;
 
@@ -163,7 +164,7 @@ public class TermReducer extends MapReduceBase implements
     if (lambdaMap != null) {
       logPhiValue = LogMath.add(
           InformedPrior.getLogEta(key.getRightElement(), lambdaMap.get(topicIndex)), logPhiValue);
-    }else{
+    } else {
       logPhiValue = LogMath.add(Settings.DEFAULT_LOG_ETA, logPhiValue);
     }
 
@@ -171,8 +172,7 @@ public class TermReducer extends MapReduceBase implements
       if (topicIndex == 0) {
         outputBeta = multipleOutputs.getCollector(Settings.BETA, Settings.BETA, reporter);
       } else {
-        outputKey.set(topicIndex, (float) logNormalizeFactor);
-        // outputKey.set(topicIndex, (float) Math.exp(normalizeFactor));
+        outputKey.set(topicIndex, (float) Gamma.digamma(Math.exp(logNormalizeFactor)));
 
         // if (truncateBeta) {
         // itr = treeMap.entrySet().iterator();
@@ -194,8 +194,7 @@ public class TermReducer extends MapReduceBase implements
       // treeMap.put(phiValue, key.getRightElement());
       // } else {
       outputValue.clear();
-      outputValue.put(key.getRightElement(), logPhiValue);
-      // outputValue.put(key.getRightElement(), Math.exp(phiValue));
+      outputValue.put(key.getRightElement(), Gamma.digamma(Math.exp(logPhiValue)));
       // }
     } else {
       // if (truncateBeta) {
@@ -213,8 +212,7 @@ public class TermReducer extends MapReduceBase implements
       // }
       // } else {
       logNormalizeFactor = LogMath.add(logNormalizeFactor, logPhiValue);
-      outputValue.put(key.getRightElement(), logPhiValue);
-      // outputValue.put(key.getRightElement(), Math.exp(phiValue));
+      outputValue.put(key.getRightElement(), Gamma.digamma(Math.exp(logPhiValue)));
       // }
     }
   }
@@ -234,8 +232,7 @@ public class TermReducer extends MapReduceBase implements
     // }
     // } else {
     if (!outputValue.isEmpty()) {
-      // outputKey.set(topicIndex, (float) Math.exp(normalizeFactor));
-      outputKey.set(topicIndex, (float) logNormalizeFactor);
+      outputKey.set(topicIndex, (float) Gamma.digamma(Math.exp(logNormalizeFactor)));
       outputBeta.collect(outputKey, outputValue);
     }
     // }
