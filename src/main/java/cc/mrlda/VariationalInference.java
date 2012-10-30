@@ -153,8 +153,8 @@ public class VariationalInference extends Configured implements Tool {
         // initialize alpha vector randomly - if it doesn't already exist
         alphaDir = new Path(alphaPath + 0);
         for (int i = 0; i < alphaVector.length; i++) {
-          // alphaVector[i] = Math.random();
-          alphaVector[i] = 0.01;
+          alphaVector[i] = Math.random();
+          // alphaVector[i] = 0.01;
         }
         try {
           sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
@@ -293,9 +293,9 @@ public class VariationalInference extends Configured implements Tool {
 
           // TODO: add option to stop alpha updating
           // update alpha
-          // alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
-          // alphaSufficientStatistics);
-          // sLogger.info("Successfully update new alpha vector.");
+          alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
+              alphaSufficientStatistics);
+          sLogger.info("Successfully update new alpha vector.");
 
           // output the new alpha's to the system
           alphaDir = new Path(alphaPath + (iterationCount + 1));
