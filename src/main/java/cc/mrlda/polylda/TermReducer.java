@@ -17,6 +17,7 @@ import com.google.common.base.Preconditions;
 import edu.umd.cloud9.io.map.HMapIDW;
 import edu.umd.cloud9.io.pair.PairOfIntFloat;
 import edu.umd.cloud9.io.triple.TripleOfInts;
+import edu.umd.cloud9.math.Gamma;
 import edu.umd.cloud9.math.LogMath;
 
 public class TermReducer extends MapReduceBase implements
@@ -36,6 +37,22 @@ public class TermReducer extends MapReduceBase implements
   private double normalizeFactor = 0;
 
   private OutputCollector<PairOfIntFloat, HMapIDW> outputBeta;
+
+  public void configure(JobConf conf) {
+    multipleOutputs = new MultipleOutputs(conf);
+
+    learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
+
+    // System.out.println("======================================================================");
+    // System.out.println("Available processors (cores): " +
+    // Runtime.getRuntime().availableProcessors());
+    // long maxMemory = Runtime.getRuntime().maxMemory();
+    // System.out.println("Maximum memory (bytes): " + (maxMemory == Long.MAX_VALUE ? "no limit" :
+    // maxMemory));
+    // System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
+    // System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
+    // System.out.println("======================================================================");
+  }
 
   public void reduce(TripleOfInts key, Iterator<DoubleWritable> values,
       OutputCollector<IntWritable, DoubleWritable> output, Reporter reporter) throws IOException {
@@ -58,9 +75,9 @@ public class TermReducer extends MapReduceBase implements
       return;
     }
 
-    double phiValue = values.next().get();
+    double logPhiValue = values.next().get();
     while (values.hasNext()) {
-      phiValue = LogMath.add(phiValue, values.next().get());
+      logPhiValue = LogMath.add(logPhiValue, values.next().get());
     }
 
     // get the beta output for this language, language index starts from 1
@@ -70,50 +87,31 @@ public class TermReducer extends MapReduceBase implements
           + languageIndex, reporter);
     }
 
-    //TODO: correct this count
+    // TODO: correct this count
     reporter.incrCounter(ParseCorpus.TOTAL_TERMS_IN_LANGUAGE, Settings.LANGUAGE_OPTION
         + languageIndex, 1);
 
     // topic index starts from 1
     if (topicIndex != key.getMiddleElement()) {
       if (topicIndex != 0) {
-        // outputKey.set(languageIndex, topicIndex, normalizeFactor);
-        outputKey.set(topicIndex, (float) normalizeFactor);
+        outputKey.set(topicIndex, (float) Gamma.digamma(Math.exp(normalizeFactor)));
         outputBeta.collect(outputKey, outputValue);
       }
 
-      // languageIndex = key.getLeftElement();
       topicIndex = key.getMiddleElement();
-      normalizeFactor = phiValue;
+      normalizeFactor = logPhiValue;
 
       outputValue.clear();
-      outputValue.put(key.getRightElement(), (float) phiValue);
+      outputValue.put(key.getRightElement(), Gamma.digamma(Math.exp(logPhiValue)));
     } else {
-      normalizeFactor = LogMath.add(normalizeFactor, phiValue);
-      outputValue.put(key.getRightElement(), (float) phiValue);
+      normalizeFactor = LogMath.add(normalizeFactor, logPhiValue);
+      outputValue.put(key.getRightElement(), Gamma.digamma(Math.exp(logPhiValue)));
     }
-  }
-
-  public void configure(JobConf conf) {
-    multipleOutputs = new MultipleOutputs(conf);
-
-    learning = conf.getBoolean(Settings.PROPERTY_PREFIX + "model.train", Settings.LEARNING_MODE);
-
-    // System.out.println("======================================================================");
-    // System.out.println("Available processors (cores): "
-    // + Runtime.getRuntime().availableProcessors());
-    // long maxMemory = Runtime.getRuntime().maxMemory();
-    // System.out.println("Maximum memory (bytes): "
-    // + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
-    // System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
-    // System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
-    // System.out.println("======================================================================");
   }
 
   public void close() throws IOException {
     if (!outputValue.isEmpty()) {
-      // outputKey.set(topicIndex, (float) Math.exp(normalizeFactor));
-      outputKey.set(topicIndex, (float) normalizeFactor);
+      outputKey.set(topicIndex, (float) Gamma.digamma(Math.exp(normalizeFactor)));
       outputBeta.collect(outputKey, outputValue);
     }
 

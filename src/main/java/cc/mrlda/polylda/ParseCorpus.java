@@ -138,10 +138,10 @@ public class ParseCorpus extends Configured implements Tool {
     int numberOfLanguages = 0;
     int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
     int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
+    boolean localMerge = FileMerger.LOCAL_MERGE;
     float maximumDocumentFrequency = DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY;
     float minimumDocumentFrequency = DEFAULT_MINIMUM_DOCUMENT_FREQUENCY;
-    boolean localMerge = FileMerger.LOCAL_MERGE;
-
+    
     Configuration configuration = this.getConf();
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
