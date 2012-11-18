@@ -32,9 +32,7 @@ import edu.umd.cloud9.util.map.HMapIV;
 public class TermReducer extends MapReduceBase implements
     Reducer<PairOfInts, DoubleWritable, IntWritable, DoubleWritable> {
   // boolean approximateBeta = false;
-
   // boolean truncateBeta = false;
-  // // double truncationThreshold = Math.log(0.001);
   // int truncationSize = 10000;
   // TreeMap<Double, Integer> treeMap = new TreeMap<Double, Integer>();
   // Iterator<Entry<Double, Integer>> itr = null;
@@ -123,11 +121,11 @@ public class TermReducer extends MapReduceBase implements
         "Fail to initialize informed prior...");
 
     // System.out.println("======================================================================");
-    // System.out.println("Available processors (cores): "
-    // + Runtime.getRuntime().availableProcessors());
+    // System.out.println("Available processors (cores): " +
+    // Runtime.getRuntime().availableProcessors());
     // long maxMemory = Runtime.getRuntime().maxMemory();
-    // System.out.println("Maximum memory (bytes): "
-    // + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
+    // System.out.println("Maximum memory (bytes): " + (maxMemory == Long.MAX_VALUE ? "no limit" :
+    // maxMemory));
     // System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
     // System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
     // System.out.println("======================================================================");

@@ -53,7 +53,7 @@ public class InformedPrior extends Configured implements Tool {
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("output file").create(Settings.OUTPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("term index file").create(ParseCorpus.INDEX));
+        .withDescription("term index file").create(ParseCorpusOptions.INDEX));
 
     String termIndex = null;
     String output = null;
@@ -86,10 +86,10 @@ public class InformedPrior extends Configured implements Tool {
             + " not initialized...");
       }
 
-      if (line.hasOption(ParseCorpus.INDEX)) {
-        termIndex = line.getOptionValue(ParseCorpus.INDEX);
+      if (line.hasOption(ParseCorpusOptions.INDEX)) {
+        termIndex = line.getOptionValue(ParseCorpusOptions.INDEX);
       } else {
-        throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
+        throw new ParseException("Parsing failed due to " + ParseCorpusOptions.INDEX
             + " not initialized...");
       }
     } catch (ParseException pe) {

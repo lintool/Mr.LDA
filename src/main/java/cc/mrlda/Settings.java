@@ -36,7 +36,8 @@ public interface Settings {
 
   public static final String INFERENCE_MODE_OPTION = "test";
   public static final String RANDOM_START_GAMMA_OPTION = "randomstart";
-  public static final String RESUME_OPTION = "modelindex";
+  public static final String MODEL_INDEX = "modelindex";
+  public static final String SYMMETRIC_ALPHA = "symmetricalpha";
 
   // public static final int DEFAULT_NUMBER_OF_TOPICS = 100;
   public static final int DEFAULT_GLOBAL_MAXIMUM_ITERATION = 30;
@@ -51,10 +52,10 @@ public interface Settings {
   public static final String ALPHA = "alpha";
 
   public static final int MAXIMUM_LOCAL_ITERATION = 100;
-  public static final int BURN_IN_SWEEP = 5;
+  //public static final int BURN_IN_SWEEP = 5;
   public static final double DEFAULT_GLOBAL_CONVERGE_CRITERIA = 0.000001;
 
-  public static final double DEFAULT_LOG_ETA = Math.log(1e-100);
+  public static final double DEFAULT_LOG_ETA = Math.log(1e-12);
 
   public static final float DEFAULT_ALPHA_UPDATE_CONVERGE_THRESHOLD = 0.000001f;
   public static final int DEFAULT_ALPHA_UPDATE_MAXIMUM_ITERATION = 1000;

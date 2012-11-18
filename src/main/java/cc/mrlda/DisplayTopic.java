@@ -41,7 +41,7 @@ public class DisplayTopic extends Configured implements Tool {
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("input beta file").create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("term index file").create(ParseCorpus.INDEX));
+        .withDescription("term index file").create(ParseCorpusOptions.INDEX));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("display top terms only (default - 10)").create(TOP_DISPLAY_OPTION));
 
@@ -66,10 +66,10 @@ public class DisplayTopic extends Configured implements Tool {
             + " not initialized...");
       }
 
-      if (line.hasOption(ParseCorpus.INDEX)) {
-        indexString = line.getOptionValue(ParseCorpus.INDEX);
+      if (line.hasOption(ParseCorpusOptions.INDEX)) {
+        indexString = line.getOptionValue(ParseCorpusOptions.INDEX);
       } else {
-        throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
+        throw new ParseException("Parsing failed due to " + ParseCorpusOptions.INDEX
             + " not initialized...");
       }
       if (line.hasOption(TOP_DISPLAY_OPTION)) {

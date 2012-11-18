@@ -48,6 +48,8 @@ public class VariationalInferenceOptions {
   private int snapshotIndex = 0;
   private boolean training = Settings.LEARNING_MODE;
 
+  private boolean symmetricAlpha = false;
+
   private Path informedPrior = null;
 
   public VariationalInferenceOptions(String args[]) {
@@ -92,10 +94,12 @@ public class VariationalInferenceOptions {
         .withDescription("seed informed prior").create(InformedPrior.INFORMED_PRIOR_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("the iteration/index of current model parameters")
-        .create(Settings.RESUME_OPTION));
+        .create(Settings.MODEL_INDEX));
 
     options.addOption(Settings.RANDOM_START_GAMMA_OPTION, false,
         "start gamma from random point every iteration");
+
+    options.addOption(Settings.SYMMETRIC_ALPHA, false, "symmetric topic Dirichlet prior");
 
     // options.addOption(FileMerger.LOCAL_MERGE_OPTION, false,
     // "merge output files and parameters locally, recommend for small scale cluster");
@@ -148,20 +152,20 @@ public class VariationalInferenceOptions {
         }
       }
 
-      if (line.hasOption(Settings.RESUME_OPTION)) {
-        snapshotIndex = Integer.parseInt(line.getOptionValue(Settings.RESUME_OPTION));
+      if (line.hasOption(Settings.MODEL_INDEX)) {
+        snapshotIndex = Integer.parseInt(line.getOptionValue(Settings.MODEL_INDEX));
         if (!line.hasOption(Settings.INFERENCE_MODE_OPTION)) {
           resume = true;
           Preconditions.checkArgument(snapshotIndex < numberOfIterations, "Option "
-              + Settings.ITERATION_OPTION + " and option " + Settings.RESUME_OPTION
+              + Settings.ITERATION_OPTION + " and option " + Settings.MODEL_INDEX
               + " do not agree with each other: option " + Settings.ITERATION_OPTION
-              + " must be strictly larger than option " + Settings.RESUME_OPTION + "...");
+              + " must be strictly larger than option " + Settings.MODEL_INDEX + "...");
         }
       }
 
       if (line.hasOption(Settings.INFERENCE_MODE_OPTION)) {
-        if (!line.hasOption(Settings.RESUME_OPTION)) {
-          throw new ParseException("Model index missing: " + Settings.RESUME_OPTION
+        if (!line.hasOption(Settings.MODEL_INDEX)) {
+          throw new ParseException("Model index missing: " + Settings.MODEL_INDEX
               + " was not initialized...");
         }
 
@@ -171,6 +175,14 @@ public class VariationalInferenceOptions {
         }
         training = false;
         resume = false;
+      }
+
+      if (line.hasOption(Settings.SYMMETRIC_ALPHA)) {
+        Preconditions.checkArgument(training, "Option " + Settings.SYMMETRIC_ALPHA
+            + " ignored due to testing mode...");
+        Preconditions.checkArgument(!resume, "Option " + Settings.SYMMETRIC_ALPHA
+            + " ignored due to resume...");
+        symmetricAlpha = true;
       }
 
       if (line.hasOption(FileMerger.LOCAL_MERGE_OPTION)) {
@@ -341,6 +353,10 @@ public class VariationalInferenceOptions {
 
   public boolean isTraining() {
     return training;
+  }
+
+  public boolean isSymmetricAlpha() {
+    return symmetricAlpha;
   }
 
   public Path getInformedPrior() {

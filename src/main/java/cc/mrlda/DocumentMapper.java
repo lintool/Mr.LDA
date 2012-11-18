@@ -158,15 +158,15 @@ public class DocumentMapper extends MapReduceBase implements
       likelihoodAlpha = Gamma.lngamma(alphaSum) - alphaLnGammaSum;
     }
 
-    System.out.println("======================================================================");
-    System.out.println("Available processors (cores): "
-        + Runtime.getRuntime().availableProcessors());
-    long maxMemory = Runtime.getRuntime().maxMemory();
-    System.out.println("Maximum memory (bytes): "
-        + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
-    System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
-    System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
-    System.out.println("======================================================================");
+    // System.out.println("======================================================================");
+    // System.out.println("Available processors (cores): "
+    // + Runtime.getRuntime().availableProcessors());
+    // long maxMemory = Runtime.getRuntime().maxMemory();
+    // System.out.println("Maximum memory (bytes): "
+    // + (maxMemory == Long.MAX_VALUE ? "no limit" : maxMemory));
+    // System.out.println("Free memory (bytes): " + Runtime.getRuntime().freeMemory());
+    // System.out.println("Total memory (bytes): " + Runtime.getRuntime().totalMemory());
+    // System.out.println("======================================================================");
 
     configurationTime = System.currentTimeMillis() - configurationTime;
   }

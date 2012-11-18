@@ -7,11 +7,13 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.Version;
 
@@ -23,6 +25,8 @@ public class ParseCorpusOptions {
   final Logger sLogger = Logger.getLogger(ParseCorpusOptions.class);
 
   public static final String ANALYZER = "analyzer";
+  public static final String STOP_LIST = "stoplist";
+  public static final String INDEX = "index";
 
   public static final String MINIMUM_DOCUMENT_FREQUENCY = "minimumdocumentfrequency";
   public static final String MAXIMUM_DOCUMENT_FREQUENCY = "maximumdocumentfrequency";
@@ -36,12 +40,16 @@ public class ParseCorpusOptions {
 
   private String inputPath = null;
   private String outputPath = null;
-  private Class<? extends Analyzer> analyzerClass = StandardAnalyzer.class;
+  private String indexPath = null;
+  private Class<? extends Analyzer> analyzerClass = null;
   private int numberOfMappers = Settings.DEFAULT_NUMBER_OF_MAPPERS;
   private int numberOfReducers = Settings.DEFAULT_NUMBER_OF_REDUCERS;
   private float maximumDocumentFrequency = DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY;
   private float minimumDocumentFrequency = DEFAULT_MINIMUM_DOCUMENT_FREQUENCY;
+  // private int maximumDocumentFrequency = Integer.MAX_VALUE;
+  // private int minimumDocumentFrequency = 0;
   private boolean localMerge = FileMerger.LOCAL_MERGE;
+  private String stopListPath = null;
 
   public ParseCorpusOptions(String args[]) {
     Options options = new Options();
@@ -52,9 +60,16 @@ public class ParseCorpusOptions {
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("output directory").isRequired().create(Settings.OUTPUT_OPTION));
 
-    options.addOption(OptionBuilder.withArgName(Settings.CLASS_INDICATOR).hasArg()
-        .withDescription("analyzer class in Lucene (default - " + StandardAnalyzer.class + ")")
-        .create(ANALYZER));
+    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
+        .withDescription("existing term indices").create(INDEX));
+
+    options.addOption(OptionBuilder
+        .withArgName(Settings.CLASS_INDICATOR)
+        .hasArg()
+        .withDescription(
+            "analyzer class in Lucene (e.g., " + StandardAnalyzer.class + ", or "
+                + SmartChineseAnalyzer.class
+                + "), default to be null, which tokenize a document by space").create(ANALYZER));
 
     options
         .addOption(FileMerger.LOCAL_MERGE_OPTION, false,
@@ -87,6 +102,16 @@ public class ParseCorpusOptions {
             "maximum document frequency (default - " + DEFAULT_MAXIMUM_DOCUMENT_FREQUENCY + ")")
         .create(MAXIMUM_DOCUMENT_FREQUENCY));
 
+    options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
+        .withDescription("stopword list").create(STOP_LIST));
+
+    // options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
+    // .withDescription("minimum document frequency (default - " + 0 + ")")
+    // .create(MINIMUM_DOCUMENT_FREQUENCY));
+    // options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
+    // .withDescription("maximum document frequency (default - " + Integer.MAX_VALUE + ")")
+    // .create(MAXIMUM_DOCUMENT_FREQUENCY));
+
     CommandLineParser parser = new GnuParser();
     HelpFormatter formatter = new HelpFormatter();
     try {
@@ -111,6 +136,14 @@ public class ParseCorpusOptions {
             + " not initialized...");
       }
 
+      if (line.hasOption(STOP_LIST)) {
+        stopListPath = line.getOptionValue(STOP_LIST);
+      }
+
+      if (line.hasOption(INDEX)) {
+        indexPath = line.getOptionValue(INDEX);
+      }
+
       if (line.hasOption(ANALYZER)) {
         analyzerClass = (Class<? extends Analyzer>) Class.forName(line.getOptionValue(ANALYZER));
         // Constructor cons = analyzerClass.getDeclaredConstructor(new Class[] { Version.class });
@@ -120,7 +153,6 @@ public class ParseCorpusOptions {
         // String[] examplesChinese = { "大家 晚上 好 ， 我 的 名字 叫 Ke Zhai 。",
         // "日本 人民 要 牢牢 记住 ： “ 钓鱼岛 是 中国 神圣 不可 分割 的 领土 。 ” （ 续 ）",
         // "中国 进出口 银行 最近 在 日本 取得 债券 信用 等级 aa - 。" };
-
         // for (String text : examplesChinese) {
         // sLogger.info("Analyzing \"" + text + "\"");
         // String name = tempAnalyzer.getClass().getSimpleName();
@@ -211,6 +243,14 @@ public class ParseCorpusOptions {
 
   public String getOutputPath() {
     return outputPath;
+  }
+
+  public String getStopListPath() {
+    return stopListPath;
+  }
+
+  public String getIndexPath() {
+    return indexPath;
   }
 
   public Class<? extends Analyzer> getAnalyzerClass() {

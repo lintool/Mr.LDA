@@ -84,6 +84,8 @@ public class VariationalInference extends Configured implements Tool {
     String modelPath = variationalOptions.getModelPath();
     int snapshotIndex = variationalOptions.getSnapshotIndex();
     boolean directEmit = variationalOptions.isDirectEmit();
+    boolean symmetricAlpha = variationalOptions.isSymmetricAlpha();
+
     boolean truncateBeta = variationalOptions.isTruncateBeta();
 
     sLogger.info("Tool: " + VariationalInference.class.getSimpleName());
@@ -101,6 +103,7 @@ public class VariationalInference extends Configured implements Tool {
     sLogger.info(" - direct emit from mapper: " + directEmit);
     sLogger.info(" - truncation beta: " + truncateBeta);
     sLogger.info(" - informed prior: " + informedPrior);
+    sLogger.info(" - symmetric alpha: " + symmetricAlpha);
 
     JobConf conf = new JobConf(configuration, VariationalInference.class);
     FileSystem fs = FileSystem.get(conf);
@@ -133,16 +136,16 @@ public class VariationalInference extends Configured implements Tool {
     Path documentGlobDir = new Path(tempDir.toString() + Path.SEPARATOR + Settings.GAMMA
         + Settings.UNDER_SCORE + Settings.GAMMA + Settings.DASH + Settings.STAR);
 
-    // these parameters are NOT used at all in the case of testing mode
-    Path alphaSufficientStatisticsDir = new Path(tempDir.toString() + Path.SEPARATOR + "part-00000");
-    String betaGlobDir = tempDir.toString() + Path.SEPARATOR + Settings.BETA + Settings.UNDER_SCORE
-        + Settings.BETA + Settings.DASH + Settings.STAR;
-
     SequenceFile.Reader sequenceFileReader = null;
     SequenceFile.Writer sequenceFileWriter = null;
 
+    // these parameters are NOT used at all in the case of testing mode
     String betaPath = outputPath + Settings.BETA + Settings.DASH;
+    String betaGlobDir = tempDir.toString() + Path.SEPARATOR + Settings.BETA + Settings.UNDER_SCORE
+        + Settings.BETA + Settings.DASH + Settings.STAR;
+
     String alphaPath = outputPath + Settings.ALPHA + Settings.DASH;
+    Path alphaSufficientStatisticsDir = new Path(tempDir.toString() + Path.SEPARATOR + "part-00000");
     double[] alphaVector = new double[numberOfTopics];
 
     if (!training) {
@@ -153,8 +156,8 @@ public class VariationalInference extends Configured implements Tool {
         // initialize alpha vector randomly - if it doesn't already exist
         alphaDir = new Path(alphaPath + 0);
         for (int i = 0; i < alphaVector.length; i++) {
-          alphaVector[i] = Math.random();
-          // alphaVector[i] = 0.01;
+          // alphaVector[i] = Math.random();
+          alphaVector[i] = 1e-3;
         }
         try {
           sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
@@ -278,7 +281,6 @@ public class VariationalInference extends Configured implements Tool {
 
         // update alpha's
         try {
-
           // load old alpha's into the system
           sequenceFileReader = new SequenceFile.Reader(fs, alphaDir, conf);
           alphaVector = importAlpha(sequenceFileReader, numberOfTopics);
@@ -293,8 +295,23 @@ public class VariationalInference extends Configured implements Tool {
 
           // TODO: add option to stop alpha updating
           // update alpha
-          alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
-              alphaSufficientStatistics);
+          if (symmetricAlpha) {
+            double totalAlphaSufficientStatistics = 0;
+            double oldAlpha = 0;
+            for (int i = 0; i < numberOfTopics; i++) {
+              totalAlphaSufficientStatistics += alphaSufficientStatistics[i];
+              oldAlpha += alphaVector[i];
+            }
+            oldAlpha /= numberOfTopics;
+            double newAlpha = updateScalarAlpha(numberOfTopics, numberOfDocuments, oldAlpha,
+                totalAlphaSufficientStatistics);
+            for (int i = 0; i < numberOfTopics; i++) {
+              alphaVector[i] = newAlpha;
+            }
+          } else {
+            alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
+                alphaSufficientStatistics);
+          }
           sLogger.info("Successfully update new alpha vector.");
 
           // output the new alpha's to the system
