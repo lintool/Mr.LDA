@@ -576,7 +576,7 @@ public class ParseCorpus extends Configured implements Tool {
     public void map(Text key, HMapSIW value, OutputCollector<IntWritable, Document> output,
         Reporter reporter) throws IOException {
       Preconditions.checkArgument(titleIndex.containsKey(key.toString()),
-          "How embarrassing! Could not find title " + temp + " in index...");
+          "How embarrassing! Could not find title " + key.toString() + " in index...");
       content.clear();
       itr = value.keySet().iterator();
       while (itr.hasNext()) {
