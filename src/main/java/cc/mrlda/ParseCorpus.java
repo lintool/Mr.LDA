@@ -51,8 +51,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Version;
 
-import cc.mrlda.hybrid.Settings;
-
 import com.google.common.base.Preconditions;
 
 import edu.umd.cloud9.io.FileMerger;
