@@ -94,7 +94,7 @@ public class VariationalInference extends Configured implements Tool {
     // .withDescription("seed informed prior").create(InformedPrior.INFORMED_PRIOR_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("the iteration/index of current model parameters")
-        .create(Settings.RESUME_OPTION));
+        .create(Settings.MODEL_INDEX));
 
     options.addOption(Settings.RANDOM_START_GAMMA_OPTION, false,
         "start gamma from random point every iteration");
@@ -156,16 +156,16 @@ public class VariationalInference extends Configured implements Tool {
             + " not initialized...");
       }
 
-      if (line.hasOption(Settings.RESUME_OPTION)) {
-        snapshotIndex = Integer.parseInt(line.getOptionValue(Settings.RESUME_OPTION));
+      if (line.hasOption(Settings.MODEL_INDEX)) {
+        snapshotIndex = Integer.parseInt(line.getOptionValue(Settings.MODEL_INDEX));
         if (!line.hasOption(Settings.INFERENCE_MODE_OPTION)) {
           resume = true;
         }
       }
 
       if (line.hasOption(Settings.INFERENCE_MODE_OPTION)) {
-        if (!line.hasOption(Settings.RESUME_OPTION)) {
-          throw new ParseException("Model index missing: " + Settings.RESUME_OPTION
+        if (!line.hasOption(Settings.MODEL_INDEX)) {
+          throw new ParseException("Model index missing: " + Settings.MODEL_INDEX
               + " was not initialized...");
         }
 
