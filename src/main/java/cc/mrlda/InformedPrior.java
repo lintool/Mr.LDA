@@ -102,7 +102,8 @@ public class InformedPrior extends Configured implements Tool {
     }
 
     // Delete the output directory if it exists already
-    JobConf conf = new JobConf(InformedPrior.class);
+    JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     Path inputPath = new Path(input);
@@ -202,7 +203,7 @@ public class InformedPrior extends Configured implements Tool {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new InformedPrior(), args);
+    int res = ToolRunner.run(new InformedPrior(), args);
     System.exit(res);
   }
 }

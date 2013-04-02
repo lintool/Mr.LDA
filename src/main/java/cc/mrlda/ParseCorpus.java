@@ -188,7 +188,7 @@ public class ParseCorpus extends Configured implements Tool {
     String indexPath = outputPath + INDEX;
 
     // Delete the output directory if it exists already
-    FileSystem fs = FileSystem.get(new JobConf(ParseCorpus.class));
+    FileSystem fs = FileSystem.get(getConf());
     fs.delete(new Path(outputPath), true);
 
     try {
@@ -326,7 +326,8 @@ public class ParseCorpus extends Configured implements Tool {
     sLogger.info(" - number of mappers: " + numberOfMappers);
     sLogger.info(" - number of reducers: " + numberOfReducers);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
     FileSystem fs = FileSystem.get(conf);
 
@@ -371,7 +372,8 @@ public class ParseCorpus extends Configured implements Tool {
 
   public Path indexTitle(String inputTitles, String outputTitle, int numberOfMappers)
       throws Exception {
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     Path titleIndexPath = new Path(outputTitle);
@@ -446,7 +448,8 @@ public class ParseCorpus extends Configured implements Tool {
     Path inputTermFiles = new Path(inputTerms);
     Path outputTermFile = new Path(outputTerm);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
@@ -594,7 +597,8 @@ public class ParseCorpus extends Configured implements Tool {
     Path termIndexPath = new Path(termIndex);
     Path titleIndexPath = new Path(titleIndex);
 
-    JobConf conf = new JobConf(ParseCorpus.class);
+    JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
@@ -672,7 +676,7 @@ public class ParseCorpus extends Configured implements Tool {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new ParseCorpus(), args);
+    int res = ToolRunner.run(new ParseCorpus(), args);
     System.exit(res);
   }
 

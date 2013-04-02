@@ -319,7 +319,8 @@ public class VariationalInference extends Configured implements Tool, Settings {
     sLogger.info(" - truncation beta: " + truncateBeta);
     sLogger.info(" - informed prior: " + informedPrior);
 
-    JobConf conf = new JobConf(VariationalInference.class);
+    JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     // delete the overall output path
@@ -387,7 +388,8 @@ public class VariationalInference extends Configured implements Tool, Settings {
     int numberOfDocuments = 0;
 
     do {
-      conf = new JobConf(VariationalInference.class);
+      conf = new JobConf(getConf());
+      conf.setJarByClass(getClass());
       if (training) {
         conf.setJobName(VariationalInference.class.getSimpleName() + " - Iteration "
             + (iterationCount + 1));
@@ -763,7 +765,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new VariationalInference(), args);
+    int res = ToolRunner.run(new VariationalInference(), args);
     System.exit(res);
   }
 }

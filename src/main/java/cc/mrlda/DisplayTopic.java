@@ -101,7 +101,8 @@ public class DisplayTopic extends Configured implements Tool {
       System.exit(0);
     }
 
-    JobConf conf = new JobConf(DisplayTopic.class);
+    JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     Path indexPath = new Path(indexString);
@@ -163,7 +164,7 @@ public class DisplayTopic extends Configured implements Tool {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new DisplayTopic(), args);
+    int res = ToolRunner.run(new DisplayTopic(), args);
     System.exit(res);
   }
 }
