@@ -763,7 +763,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new VariationalInference(), args);
+    int res = ToolRunner.run(new VariationalInference(), args);
     System.exit(res);
   }
 }

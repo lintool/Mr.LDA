@@ -672,7 +672,7 @@ public class ParseCorpus extends Configured implements Tool {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new ParseCorpus(), args);
+    int res = ToolRunner.run(new ParseCorpus(), args);
     System.exit(res);
   }
 

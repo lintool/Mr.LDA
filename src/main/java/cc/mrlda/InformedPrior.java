@@ -202,7 +202,7 @@ public class InformedPrior extends Configured implements Tool {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new InformedPrior(), args);
+    int res = ToolRunner.run(new InformedPrior(), args);
     System.exit(res);
   }
 }

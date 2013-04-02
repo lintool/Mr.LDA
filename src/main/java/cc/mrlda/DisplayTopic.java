@@ -163,7 +163,7 @@ public class DisplayTopic extends Configured implements Tool {
   }
 
   public static void main(String[] args) throws Exception {
-    int res = ToolRunner.run(new Configuration(), new DisplayTopic(), args);
+    int res = ToolRunner.run(new DisplayTopic(), args);
     System.exit(res);
   }
 }
