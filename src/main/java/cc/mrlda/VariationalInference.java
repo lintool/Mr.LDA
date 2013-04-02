@@ -320,6 +320,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
     sLogger.info(" - informed prior: " + informedPrior);
 
     JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     // delete the overall output path
@@ -388,6 +389,7 @@ public class VariationalInference extends Configured implements Tool, Settings {
 
     do {
       conf = new JobConf(getConf());
+      conf.setJarByClass(getClass());
       if (training) {
         conf.setJobName(VariationalInference.class.getSimpleName() + " - Iteration "
             + (iterationCount + 1));

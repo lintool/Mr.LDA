@@ -327,6 +327,7 @@ public class ParseCorpus extends Configured implements Tool {
     sLogger.info(" - number of reducers: " + numberOfReducers);
 
     JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     conf.setJobName(ParseCorpus.class.getSimpleName() + " - tokenize document");
     FileSystem fs = FileSystem.get(conf);
 
@@ -372,6 +373,7 @@ public class ParseCorpus extends Configured implements Tool {
   public Path indexTitle(String inputTitles, String outputTitle, int numberOfMappers)
       throws Exception {
     JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     Path titleIndexPath = new Path(outputTitle);
@@ -447,6 +449,7 @@ public class ParseCorpus extends Configured implements Tool {
     Path outputTermFile = new Path(outputTerm);
 
     JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
@@ -595,6 +598,7 @@ public class ParseCorpus extends Configured implements Tool {
     Path titleIndexPath = new Path(titleIndex);
 
     JobConf conf = new JobConf(getConf());
+    conf.setJarByClass(getClass());
     FileSystem fs = FileSystem.get(conf);
 
     sLogger.info("Tool: " + ParseCorpus.class.getSimpleName());
