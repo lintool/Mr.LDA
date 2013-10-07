@@ -40,8 +40,8 @@ public class InformedPrior extends Configured implements Tool {
   public static final String INFORMED_PRIOR_OPTION = "informedprior";
 
   // informed prior on beta matrix
-  public static final float DEFAULT_INFORMED_LOG_ETA = (float) Math.log(10.0);
-  public static final float DEFAULT_UNINFORMED_LOG_ETA = (float) Math.log(0.01);
+  public static final float DEFAULT_INFORMED_LOG_ETA = (float) Math.log(1000.0);
+  public static final float DEFAULT_UNINFORMED_LOG_ETA = (float) Math.log(0.001);
 
   @SuppressWarnings("unchecked")
   public int run(String[] args) throws Exception {
@@ -53,7 +53,7 @@ public class InformedPrior extends Configured implements Tool {
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("output file").create(Settings.OUTPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("term index file").create(ParseCorpus.INDEX));
+        .withDescription("term index file").create(ParseCorpusOptions.INDEX));
 
     String termIndex = null;
     String output = null;
@@ -86,10 +86,10 @@ public class InformedPrior extends Configured implements Tool {
             + " not initialized...");
       }
 
-      if (line.hasOption(ParseCorpus.INDEX)) {
-        termIndex = line.getOptionValue(ParseCorpus.INDEX);
+      if (line.hasOption(ParseCorpusOptions.INDEX)) {
+        termIndex = line.getOptionValue(ParseCorpusOptions.INDEX);
       } else {
-        throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
+        throw new ParseException("Parsing failed due to " + ParseCorpusOptions.INDEX
             + " not initialized...");
       }
     } catch (ParseException pe) {
@@ -169,7 +169,7 @@ public class InformedPrior extends Configured implements Tool {
     }
   }
 
-  public static float getEta(int termID, Set<Integer> knownTerms) {
+  public static float getLogEta(int termID, Set<Integer> knownTerms) {
     if (knownTerms != null && knownTerms.contains(termID)) {
       return DEFAULT_INFORMED_LOG_ETA;
     }

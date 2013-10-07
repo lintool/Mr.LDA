@@ -8,20 +8,27 @@ Please send any bugs of problems to Ke Zhai (kzhai@umd.edu).
 
 Install and Build
 ----------
-Download the source code package (unzip if necessary) to directory `/home/directory/` in your own local file system (not HDFS). 
-To download all the dependency packages, please run the following command
+Download the source code package (unzip if necessary) to directory `/home/directory/` in your own local file system (not HDFS). To download all the dependency packages, please run the following command
 
     cd /home/directory/Mr.LDA/
     ant
 
-Jar all the .class files anddependency packages to `Mr.LDA.jar`. This can
-either be accomplished manually or by running the following command
+Jar all the .class files and dependency packages to `Mr.LDA.jar`. This can either be accomplished manually or by running the following command
 
     cd /home/directory/Mr.LDA/
     ant export
 
-The above command should create `bin/Mr.LDA-{version}.jar` with all of the
-proper libraries.
+The above command should create `bin/Mr.LDA-{version}.jar` with all of the proper libraries.
+
+If you run into any memory problem like this,
+
+    Caused by: java.lang.OutOfMemoryError: Java heap space
+
+it is because the default memory usage for every mapper/reducer instance is 200MB (or some other value specified by the hadoop-site.xml for the cluster). In such case, include the following option in your command
+
+    -D mapred.child.java.opts=-Xmx2000m
+    
+and set the memory limit to 2GB (or any value that is sufficient to load in all the necessary parameter).
 
 Tokenizing and Indexing
 ----------
@@ -91,7 +98,6 @@ To train LDA model on a dataset, please run one of the following command:
 
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40
-    hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -output /hadoop/mrlda/output/directory -term 60000 -topic 100 -iteration 40 -mapper 50 -reducer 20 -localmerge
 

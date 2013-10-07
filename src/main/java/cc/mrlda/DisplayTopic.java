@@ -1,19 +1,3 @@
-/*
- * Ivory: A Hadoop toolkit for Web-scale information retrieval
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0 
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
-
 package cc.mrlda;
 
 import java.util.HashMap;
@@ -57,7 +41,7 @@ public class DisplayTopic extends Configured implements Tool {
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
         .withDescription("input beta file").create(Settings.INPUT_OPTION));
     options.addOption(OptionBuilder.withArgName(Settings.PATH_INDICATOR).hasArg()
-        .withDescription("term index file").create(ParseCorpus.INDEX));
+        .withDescription("term index file").create(ParseCorpusOptions.INDEX));
     options.addOption(OptionBuilder.withArgName(Settings.INTEGER_INDICATOR).hasArg()
         .withDescription("display top terms only (default - 10)").create(TOP_DISPLAY_OPTION));
 
@@ -82,13 +66,12 @@ public class DisplayTopic extends Configured implements Tool {
             + " not initialized...");
       }
 
-      if (line.hasOption(ParseCorpus.INDEX)) {
-        indexString = line.getOptionValue(ParseCorpus.INDEX);
+      if (line.hasOption(ParseCorpusOptions.INDEX)) {
+        indexString = line.getOptionValue(ParseCorpusOptions.INDEX);
       } else {
-        throw new ParseException("Parsing failed due to " + ParseCorpus.INDEX
+        throw new ParseException("Parsing failed due to " + ParseCorpusOptions.INDEX
             + " not initialized...");
       }
-
       if (line.hasOption(TOP_DISPLAY_OPTION)) {
         topDisplay = Integer.parseInt(line.getOptionValue(TOP_DISPLAY_OPTION));
       }
@@ -104,10 +87,10 @@ public class DisplayTopic extends Configured implements Tool {
     JobConf conf = new JobConf(DisplayTopic.class);
     FileSystem fs = FileSystem.get(conf);
 
-    Path indexPath = new Path(indexString);
+    Path indexPath = null;
+    indexPath = new Path(indexString);
     Preconditions.checkArgument(fs.exists(indexPath) && fs.isFile(indexPath),
         "Invalid index path...");
-
     Path betaPath = new Path(betaString);
     Preconditions.checkArgument(fs.exists(betaPath) && fs.isFile(betaPath), "Invalid beta path...");
 
@@ -120,7 +103,6 @@ public class DisplayTopic extends Configured implements Tool {
       while (sequenceFileReader.next(intWritable, text)) {
         termIndex.put(intWritable.get(), text.toString());
       }
-
       PairOfIntFloat pairOfIntFloat = new PairOfIntFloat();
       // HMapIFW hmap = new HMapIFW();
       HMapIDW hmap = new HMapIDW();
