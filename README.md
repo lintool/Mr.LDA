@@ -50,7 +50,7 @@ To print the help information and usage hints, please run the following command
 
     hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -help
 
-By the end of execution, you will end up with three files/dirtories in the specified output, for example,
+By the end of execution, you will end up with three files/directories in the specified output, for example,
 
     hadoop fs -ls /hadoop/index/document/output/directory/
     Found 3 items
@@ -147,3 +147,24 @@ By the end of the execution, you should get an informed prior file with correct 
 To train LDA model on a dataset with informed prior, please run the following command
     
     hadoop jar Mr.LDA.jar cc.mrlda.VariationalInference -input /hadoop/index/document/output/directory/document -informedprior /hadoop/index/document/output/directory/prior -output /hadoop/mrlda/output/directory -term 60000 -topic 100
+
+After Running Experiments
+----------
+
+The output is a set of parameters in sequence file format. In your output folder, you will see a set of 'beta-*' files, and 'alpha-*' files, and 'document-*' directory. 'alpha-*' are the hyperparameters, 'beta-*' are the distribution over words per topic and 'document-*' are the topic distribution for each document, where ('*' is the iteration index).
+
+To display the top 20 ranked words of each topic, access 'beta-*' file using following command
+    
+    hadoop jar Mr.LDA.jar cc.mrlda.DisplayTopic -input /hadoop/mrlda/output/directory/beta-* -term /hadoop/index/document/output/document/term -topdisplay 20
+
+Please set the '-topdisplay' to an extremely large value to display all the words in each topic. Note that the output scores are sorted and in log scale.
+
+To display the distribution over all topics for each document, access 'document-*' file using following command
+   
+   hadoop jar Mr.LDA.jar cc.mrlda.DisplayDocument -input /path/to/document-*
+
+To display the hyper-parameters, access alpha-* file using following command
+
+   hadoop jar Mr.LDA.jar edu.umd.cloud9.io.ReadSequenceFile /path/to/alpha-*
+
+You may refer to -help options for further information.
