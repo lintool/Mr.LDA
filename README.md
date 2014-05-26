@@ -151,7 +151,7 @@ To train LDA model on a dataset with informed prior, please run the following co
 After Running Experiments
 ----------
 
-The output is a set of parameters in sequence file format. In your output folder, you will see a set of 'beta-*' files, and 'alpha-*' files, and 'document-*' directory. 'alpha-*' are the hyperparameters, 'beta-*' are the distribution over words per topic and 'document-*' are the topic distribution for each document, where ('*' is the iteration index).
+The output is a set of parameters in sequence file format. In your output folder, you will see a set of 'beta-\*' files, and 'alpha-\*' files, and 'document-\*' directory. 'alpha-\*' are the hyperparameters, 'beta-\*' are the distribution over words per topic and 'document-\*' are the topic distribution for each document, where ('*' is the iteration index).
 
 To display the top 20 ranked words of each topic, access 'beta-*' file using following command
     
@@ -159,11 +159,11 @@ To display the top 20 ranked words of each topic, access 'beta-*' file using fol
 
 Please set the '-topdisplay' to an extremely large value to display all the words in each topic. Note that the output scores are sorted and in log scale.
 
-To display the distribution over all topics for each document, access 'document-*' file using following command
+To display the distribution over all topics for each document, access 'document-\*' file using following command
    
    hadoop jar Mr.LDA.jar cc.mrlda.DisplayDocument -input /path/to/document-*
 
-To display the hyper-parameters, access alpha-* file using following command
+To display the hyper-parameters, access alpha-\* file using following command
 
    hadoop jar Mr.LDA.jar edu.umd.cloud9.io.ReadSequenceFile /path/to/alpha-*
 
