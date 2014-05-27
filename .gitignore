@@ -1,13 +1,9 @@
+.classpath
+.project
 *~
 .*crc
 data/
-bin/
-build/
-dist/
-etc/junit.sh
-etc/run.sh
-ivy/ivy.jar
-lib/
+target/
 .DS_Store
 .svn/
 */.svn/
