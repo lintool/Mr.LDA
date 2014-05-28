@@ -135,5 +135,12 @@
       <version>4.0.0</version>
     </dependency>
 
+    <!-- Needed for ReadSequenceFiles -->
+    <dependency>
+      <groupId>org.apache.pig</groupId>
+      <artifactId>pig</artifactId>
+      <version>0.12.1</version>
+    </dependency>
+
   </dependencies>
 </project>
