@@ -1,69 +1,105 @@
-Mr. LDA
-================
-Mr. LDA is a Latent Dirichlet Allocation topic modeling package based on Variational Bayesian learning approach using MapReduce and Hadoop, developed by a [Cloud Computing Research Team] (http://lintool.github.com/Mr.LDA/docs/team.html) in [University of Maryland, College Park] (http://www.umd.edu).
+Mr.LDA
+=======
 
-Please download the latest version from our [GitHub repository](https://github.com/lintool/Mr.LDA).
+Mr.LDA is an open-source package for flexible, scalable, multilingual topic
+modeling using variational inference in MapReduce. For more details, please consult [this paper](http://www2012.org/proceedings/proceedings/p879.pdf). The latest version of the code can always be found on [GitHub](https://github.com/lintool/Mr.LDA).
 
-Please send any bugs of problems to Ke Zhai (kzhai@umd.edu).
+Please send any bugs reports or questions to Ke Zhai (kzhai@umd.edu).
 
-Install and Build
-----------
-Download the source code package (unzip if necessary) to directory `/home/directory/` in your own local file system (not HDFS). To download all the dependency packages, please run the following command
+Getting Started
+---------------
 
-    cd /home/directory/Mr.LDA/
-    ant
+Clone the repo:
 
-Jar all the .class files and dependency packages to `Mr.LDA.jar`. This can either be accomplished manually or by running the following command
+```
+git clone git@github.com:lintool/Mr.LDA.git
+```
 
-    cd /home/directory/Mr.LDA/
-    ant export
+Then build using the standard invocation:
 
-The above command should create `bin/Mr.LDA-{version}.jar` with all of the proper libraries.
+```
+mvn clean package
+```
 
-If you run into any memory problem like this,
+If you want to set up your Eclipse environment:
 
-    Caused by: java.lang.OutOfMemoryError: Java heap space
+```
+mvn eclipse:clean
+mvn eclipse:eclipse
+```
 
-it is because the default memory usage for every mapper/reducer instance is 200MB (or some other value specified by the hadoop-site.xml for the cluster). In such case, include the following option in your command
+Corpus Preparation
+------------------
 
-    -D mapred.child.java.opts=-Xmx2000m
-    
-and set the memory limit to 2GB (or any value that is sufficient to load in all the necessary parameter).
+Some sample data from the Associated Press can be found in this [separate repo](https://github.com/lintool/Mr.LDA-data). This is the same sample data that is used in [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c/).
 
-Tokenizing and Indexing
-----------
+The repo includes a Python script for parsing the corpus into a format that Mr.LDA uses. The output of the script is stored in `ap-sample.txt.gz`. This is the data file that you'll want to load in HDFS.
 
-Mr. LDA takes raw text file as input, every row in the text file represents a stand-alone document. Document title and content are separated by a *tab* ('\t'), and words in the content are separated by a *space* (' '). The raw input text file should look like this:
+Mr.LDA takes plain text files as input, where each line in the text file represents a document. The document id and content are separated by a *tab*, and words in the content are separated by a spaces. For example, the first two lines of `ap-sample.txt` look like:
 
-    'Big Bang Theory' Brings Stephen Hawking on as Guest Star	'The Big Bang Theory' is getting a visit from Stephen Hawking. The renowned theoretical physicist will guest-star on the April 5 episode of the CBS comedy, the network said Monday. In the cameo, Hawking visits uber-geek Sheldon Cooper (Jim Parsons) at work 'to share his beautiful mind with his most ardent admirer,' according to CBS. Executive producer Bill Prady said that having Hawking on the show had long been a goal, though it seemed unattainable. When people would ask us who a dream guest star' for the show would be, we would always joke and say Stephen Hawking knowing that it was a long shot of astronomical proportions, Prady said. In fact, we're not exactly sure how we got him. It's the kind of mystery that could only be understood by, say, a Stephen Hawking. Hawking, known for his book A Brief History of Time, has appeared on television comedies before, albeit in voice work. Hawking has done a guest spot on 'Futurama' and appeared as himself on several episodes of 'The Simpsons.'
-    The World's Best Gourmet Pizza: 'Tropical Pie' Wins Highest Honor	To make the world's best pizza you'll need dough, mozzarella cheese and some top shelf tequila. On Thursday, top pizza-makers from around the globe competed for the title of 'World's Best Pizza' at the International Pizza Expo in Las Vegas. At stake was $10,000 and the highest honor in the industry. This year's big winner was anything but traditional. The 'Tropical Pie' - a blend melted asiago and mozzarella cheese, topped with shrimps, thinly sliced and twisted limes, a fresh mango salsa, all resting on a rich pineapple cream sauce infused with Patron. The recipe, devised by mad pizza scientist Andrew Scudera of Goodfella's Brick Oven Pizza in Staten Island, was months in the making.ame up with idea to use tequila, but it was a collaboration,' Andrew tells Shine. 'Everyone here at the restaurant dived in and gave their input, helping to perfect the recipe by the time we brought it to the show.' The competition in Vegas was steep-particularly in the 'gourmet' category, where the Tropical Pie was entered.	
-    ...
+```
+ap881218-0003   student privat baptist school allegedli kill ...
+ap880224-0195   bechtel group offer sell oil israel discount ...
+```
 
-Mr. LDA relies on [Lucene] (http://lucene.apache.org/core/) to tokenize all the text. Please take note that the indexing process in Mr. LDA does *not* provide mechanism to filter out words based on their frequency. However, for more information, interested users could refer to the class `ParseCorpus.java`, which consists three steps. The filter could be introduced after the second step.
+To prepare the corpus into the internal format used by Mr.LDA, run the following command:
 
-To tokenize, parse and index the raw text file, please run either the following command
+```
+hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.ParseCorpus \
+ -input ap-sample.txt -output ap-sample-parsed
+```
 
-    hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -input /hadoop/raw/text/input/directory -output /hadoop/index/document/output/directory
-    hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -input /hadoop/raw/text/input/directory -output /hadoop/index/document/output/directory -mapper 10 -reducer 4
+When you examine the output, you'll see:
 
-To print the help information and usage hints, please run the following command
+```
+$ hadoop fs -ls ap-sample-parsed
+ap-sample-parsed/document
+ap-sample-parsed/term
+ap-sample-parsed/title
+```
 
-    hadoop jar Mr.LDA.jar cc.mrlda.ParseCorpus -help
+The directory `term` stores the mapping between a unique token and its unique integer id used internally (i.e., the dictionary). The directory `title` stores the mapping between the document id and its unique integer internal id. These are both stored in `SequenceFiles` format, with `IntWritable` as the key and `Text` as the value.
 
-By the end of execution, you will end up with three files/directories in the specified output, for example,
+To example the first 20 document id mappings:
 
-    hadoop fs -ls /hadoop/index/document/output/directory/
-    Found 3 items
-    drwxr-xr-x   - user supergroup          0 2012-01-12 12:18 /hadoop/index/document/output/directory/document
-    -rw-r--r--   3 user supergroup        282 2012-01-12 12:18 /hadoop/index/document/output/directory/term
-    -rw-r--r--   3 user supergroup        189 2012-01-12 12:18 /hadoop/index/document/output/directory/title
+```
+hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+ edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/title 20
+```
 
-File `/hadoop/index/document/output/directory/term` stores the mapping between a unique token and its unique integer ID. Similarly, `/hadoop/index/document/output/directory/title` stores the mapping between a document title to its unique integer ID. Both of these two files are in sequence file format, key-ed by `IntWritable.java` and value-d by `Text.java`. You may use the following command to browse a sequence file in general
+And to example the first 20 terms of the dictionary:
 
-     hadoop jar Mr.LDA.jar edu.umd.cloud9.io.ReadSequenceFile /hadoop/index/document/output/directory/term
-     hadoop jar Mr.LDA.jar edu.umd.cloud9.io.ReadSequenceFile /hadoop/index/document/output/directory/term 20
+```
+hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+ edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/term 20
+```
 
-and option '20' specifies the first 20 records to be displayed.
+Running "Vanilla" LDA
+---------------------
+
+ Mr.LDA implements LDA using variational inference. Here's an invocation for running 50 iterations on the sample dataset:
+
+```
+nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+ cc.mrlda.VariationalInference \
+ -input ap-sample-parsed/document -output ap-sample-lda \
+ -term 10000 -topic 20 -iteration 50 -mapper 50 -reducer 20 >& lda.log &
+```
+
+The above command will put the process in the background and you can `tail -f lda.log` to see its process.
+
+Note that `-term` option specifies the number of unique tokens in the corpus. This just needs to be a reasonable upper bound.
+
+If the MapReduce jobs are interrupted for any reason, you can restart at a particular iteration with the `-modelindex` parameter. For example, to pick up where the previous command left off and run another 10 iterations, do this:
+
+```
+nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+ cc.mrlda.VariationalInference \
+ -input ap-sample-parsed/document -output ap-sample-lda \
+ -term 10000 -topic 20 -iteration 60 -mapper 50 -reducer 20 \
+ -modelindex 50 >& lda.log &
+```
+
 
 Input Data Format
 ----------
