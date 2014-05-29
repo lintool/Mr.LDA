@@ -350,31 +350,34 @@ public class DocumentMapper extends MapReduceBase implements
   }
 
   public void close() throws IOException {
-    for (int i = 0; i < numberOfTopics; i++) {
-      // a *zero* topic index and a *positive* topic index indicates the output is a term for
-      // alpha updating
-      outputKey.set(0, i + 1);
-      outputValue.set(totalAlphaSufficientStatistics[i]);
-      outputCollector.collect(outputKey, outputValue);
-      totalAlphaSufficientStatistics[i] = 0;
-    }
-
-    if (!directEmit) {
-      double[] phi = null;
-      itr = totalPhi.keySet().iterator();
-      while (itr.hasNext()) {
-        int termID = itr.next();
-        phi = totalPhi.get(termID);
-        for (int i = 0; i < numberOfTopics; i++) {
-          outputValue.set(phi[i]);
-
-          // a *positive* topic index indicates the output is a phi values
-          outputKey.set(i + 1, termID);
-          outputCollector.collect(outputKey, outputValue);
-        }
+    if (learning) {
+      for (int i = 0; i < numberOfTopics; i++) {
+        // a *zero* topic index and a *positive* topic index indicates the output is a term for
+        // alpha updating
+        outputKey.set(0, i + 1);
+        outputValue.set(totalAlphaSufficientStatistics[i]);
+        outputCollector.collect(outputKey, outputValue);
+        totalAlphaSufficientStatistics[i] = 0;
       }
-      totalPhi.clear();
+
+      if (!directEmit) {
+        double[] phi = null;
+        itr = totalPhi.keySet().iterator();
+        while (itr.hasNext()) {
+          int termID = itr.next();
+          phi = totalPhi.get(termID);
+          for (int i = 0; i < numberOfTopics; i++) {
+            outputValue.set(phi[i]);
+
+            // a *positive* topic index indicates the output is a phi values
+            outputKey.set(i + 1, termID);
+            outputCollector.collect(outputKey, outputValue);
+          }
+        }
+        totalPhi.clear();
+      }
     }
+    
     multipleOutputs.close();
   }
 
