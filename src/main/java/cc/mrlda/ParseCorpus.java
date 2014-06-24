@@ -35,6 +35,7 @@ import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
+import org.apache.hadoop.mapred.NonEmptySequenceFileOutputFormat;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
@@ -671,7 +672,8 @@ public class ParseCorpus extends Configured implements Tool {
     conf.setOutputValueClass(Document.class);
 
     conf.setInputFormat(SequenceFileInputFormat.class);
-    conf.setOutputFormat(SequenceFileOutputFormat.class);
+    //conf.setOutputFormat(SequenceFileOutputFormat.class);
+    conf.setOutputFormat(NonEmptySequenceFileOutputFormat.class);
 
     FileInputFormat.setInputPaths(conf, inputDocumentFiles);
     FileOutputFormat.setOutputPath(conf, outputDocumentFiles);
