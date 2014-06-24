@@ -7,11 +7,16 @@
   </publications>
 
   <dependencies>
-    <dependency org="org.apache.hadoop" name="hadoop-core" rev="0.20.2-cdh3u1">
-        <exclude name="ant"/>
-        <exclude name="hadoop-ant"/>
-    </dependency>
-    <dependency org="edu.umd" name="cloud9" rev="1.2.12">
+    <dependency org="org.apache.hadoop" name="hadoop-common" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>
+    <dependency org="org.apache.hadoop" name="hadoop-yarn-api" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>
+    <dependency org="org.apache.hadoop" name="hadoop-yarn-common" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>
+    <dependency org="org.apache.hadoop" name="hadoop-yarn-server-common" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>
+    <dependency org="org.apache.hadoop" name="hadoop-yarn-server-nodemanager" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>
+    <dependency org="org.apache.hadoop" name="hadoop-yarn-server-resourcemanager" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>
+    <dependency org="org.apache.hadoop" name="hadoop-hdfs" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>
+    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-core" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>
+    <dependency org="org.apache.hadoop" name="hadoop-streaming" rev="2.0.0-cdh4.4.0" conf="*->*,!sources,!javadoc"/>                                                                   
+    <dependency org="edu.umd" name="cloud9" rev="1.4.17">
         <exclude name="ant"/>
         <exclude org="org.apache.hadoop"/>
         <exclude org="com.cloudera.hadoop"/>
