@@ -275,91 +275,88 @@ public class VariationalInference extends Configured implements Tool {
         sLogger.info("Average time elapsed for processing a document (ms): " + trainingTime);
 
         // break out of the loop if in testing mode
-        if (!training) {
-          break;
-        }
+        if (training) {
+          // update alpha only in training mode
+          try {
+            // load old alpha's into the system
+            sequenceFileReader = new SequenceFile.Reader(fs, alphaDir, conf);
+            alphaVector = importAlpha(sequenceFileReader, numberOfTopics);
+            sLogger.info("Successfully import old alpha vector from file " + alphaDir);
 
-        // update alpha's
-        try {
-          // load old alpha's into the system
-          sequenceFileReader = new SequenceFile.Reader(fs, alphaDir, conf);
-          alphaVector = importAlpha(sequenceFileReader, numberOfTopics);
-          sLogger.info("Successfully import old alpha vector from file " + alphaDir);
+            // load alpha sufficient statistics into the system
+            double[] alphaSufficientStatistics = null;
+            sequenceFileReader = new SequenceFile.Reader(fs, alphaSufficientStatisticsDir, conf);
+            alphaSufficientStatistics = importAlpha(sequenceFileReader, numberOfTopics);
+            sLogger.info("Successfully import alpha sufficient statistics tokens from file "
+                + alphaSufficientStatisticsDir);
 
-          // load alpha sufficient statistics into the system
-          double[] alphaSufficientStatistics = null;
-          sequenceFileReader = new SequenceFile.Reader(fs, alphaSufficientStatisticsDir, conf);
-          alphaSufficientStatistics = importAlpha(sequenceFileReader, numberOfTopics);
-          sLogger.info("Successfully import alpha sufficient statistics tokens from file "
-              + alphaSufficientStatisticsDir);
-
-          // TODO: add option to stop alpha updating
-          // update alpha
-          if (symmetricAlpha) {
-            double totalAlphaSufficientStatistics = 0;
-            double oldAlpha = 0;
-            for (int i = 0; i < numberOfTopics; i++) {
-              totalAlphaSufficientStatistics += alphaSufficientStatistics[i];
-              oldAlpha += alphaVector[i];
+            // TODO: add option to stop alpha updating
+            // update alpha
+            if (symmetricAlpha) {
+              double totalAlphaSufficientStatistics = 0;
+              double oldAlpha = 0;
+              for (int i = 0; i < numberOfTopics; i++) {
+                totalAlphaSufficientStatistics += alphaSufficientStatistics[i];
+                oldAlpha += alphaVector[i];
+              }
+              oldAlpha /= numberOfTopics;
+              double newAlpha = updateScalarAlpha(numberOfTopics, numberOfDocuments, oldAlpha,
+                  totalAlphaSufficientStatistics);
+              for (int i = 0; i < numberOfTopics; i++) {
+                alphaVector[i] = newAlpha;
+              }
+            } else {
+              alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
+                  alphaSufficientStatistics);
             }
-            oldAlpha /= numberOfTopics;
-            double newAlpha = updateScalarAlpha(numberOfTopics, numberOfDocuments, oldAlpha,
-                totalAlphaSufficientStatistics);
-            for (int i = 0; i < numberOfTopics; i++) {
-              alphaVector[i] = newAlpha;
-            }
-          } else {
-            alphaVector = updateVectorAlpha(numberOfTopics, numberOfDocuments, alphaVector,
-                alphaSufficientStatistics);
+            sLogger.info("Successfully update new alpha vector.");
+
+            // output the new alpha's to the system
+            alphaDir = new Path(alphaPath + (iterationCount + 1));
+            sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
+                DoubleWritable.class);
+            exportAlpha(sequenceFileWriter, alphaVector);
+            sLogger.info("Successfully export new alpha vector to file " + alphaDir);
+          } finally {
+            // remove all the alpha sufficient statistics
+            fs.deleteOnExit(alphaSufficientStatisticsDir);
+
+            IOUtils.closeStream(sequenceFileReader);
+            IOUtils.closeStream(sequenceFileWriter);
           }
-          sLogger.info("Successfully update new alpha vector.");
 
-          // output the new alpha's to the system
-          alphaDir = new Path(alphaPath + (iterationCount + 1));
-          sequenceFileWriter = new SequenceFile.Writer(fs, conf, alphaDir, IntWritable.class,
-              DoubleWritable.class);
-          exportAlpha(sequenceFileWriter, alphaVector);
-          sLogger.info("Successfully export new alpha vector to file " + alphaDir);
-        } finally {
-          // remove all the alpha sufficient statistics
-          fs.deleteOnExit(alphaSufficientStatisticsDir);
+          // merge beta's
+          // TODO: local merge doesn't compress data
+          if (localMerge) {
+            throw new IOException("Please disable local merge option...");
+            // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+            // 0,
+            // PairOfIntFloat.class, HMapIDW.class, true, true);
 
-          IOUtils.closeStream(sequenceFileReader);
-          IOUtils.closeStream(sequenceFileWriter);
+            // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+            // 0,
+            // PairOfIntFloat.class, ProbDist.class, true, true);
+            // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+            // 0,
+            // PairOfIntFloat.class, BloomMap.class, true, true);
+            // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+            // 0,
+            // PairOfIntFloat.class, HashMap.class, true, true);
+          } else {
+            betaDir = FileMerger.mergeSequenceFiles(new Configuration(), betaGlobDir, betaPath
+                + (iterationCount + 1), reducerTasks, PairOfIntFloat.class, HMapIDW.class, true,
+                true);
+            // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+            // reducerTasks, PairOfIntFloat.class, ProbDist.class, true, true);
+            // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+            // reducerTasks, PairOfIntFloat.class, BloomMap.class, true, true);
+            // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
+            // reducerTasks, PairOfIntFloat.class, HashMap.class, true, true);
+          }
         }
-
-        // merge beta's
-        // TODO: local merge doesn't compress data
-        if (localMerge) {
-          throw new IOException("Please disable local merge option...");
-          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-          // 0,
-          // PairOfIntFloat.class, HMapIDW.class, true, true);
-
-          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-          // 0,
-          // PairOfIntFloat.class, ProbDist.class, true, true);
-          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-          // 0,
-          // PairOfIntFloat.class, BloomMap.class, true, true);
-          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-          // 0,
-          // PairOfIntFloat.class, HashMap.class, true, true);
-        } else {
-          betaDir = FileMerger
-              .mergeSequenceFiles(new Configuration(), betaGlobDir,
-                  betaPath + (iterationCount + 1), reducerTasks, PairOfIntFloat.class,
-                  HMapIDW.class, true, true);
-          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-          // reducerTasks, PairOfIntFloat.class, ProbDist.class, true, true);
-          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-          // reducerTasks, PairOfIntFloat.class, BloomMap.class, true, true);
-          // betaDir = FileMerger.mergeSequenceFiles(betaGlobDir, betaPath + (iterationCount + 1),
-          // reducerTasks, PairOfIntFloat.class, HashMap.class, true, true);
-        }
-
+        
         // merge gamma (for alpha update) first and move document to the correct directory
-        if (!randomStartGamma) {
+        if (!randomStartGamma || !training) {
           gammaDir = inputDir;
           inputDir = new Path(outputPath + Settings.GAMMA + Settings.DASH + (iterationCount + 1));
 
@@ -394,7 +391,6 @@ public class VariationalInference extends Configured implements Tool {
         // delete the output directory after job
         fs.delete(tempDir, true);
       }
-
     } while (iterationCount < numberOfIterations);
 
     return 0;
