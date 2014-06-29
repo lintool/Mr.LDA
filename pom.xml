@@ -1,0 +1,146 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>cc.mrlda</groupId>
+  <artifactId>mrlda</artifactId>
+  <packaging>jar</packaging>
+  <version>0.9.0-SNAPSHOT</version>
+  <name>Mr.LDA</name>
+  <description>Scalable Topic Modeling using Variational Inference in MapReduce</description>
+  <url>http://mrlda.cc/</url>
+
+  <licenses>
+    <license>
+      <name>The Apache Software License, Version 2.0</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <scm>
+    <connection>scm:git:git@github.com:lintool/Mr.LDA.git</connection>
+    <developerConnection>scm:git:git@github.com:lintool/Mr.LDA.git</developerConnection>
+    <url>git@github.com:lintool/Mr.LDA.git</url>
+  </scm>
+
+  <developers>
+    <developer>
+      <id>lintool</id>
+      <name>Jimmy Lin</name>
+      <email>jimmylin@umd.edu</email>
+    </developer>
+    <developer>
+      <id>kzhai</id>
+      <name>Ke Zhai</name>
+      <email>kzhai@umd.edu</email>
+    </developer>
+  </developers>
+
+  <parent>
+    <groupId>org.sonatype.oss</groupId>
+    <artifactId>oss-parent</artifactId>
+    <version>7</version>
+  </parent>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <hadoop.version2>2.0.0-cdh4.4.0</hadoop.version2>
+  </properties>
+
+  <build>
+    <plugins>
+       <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <version>2.1</version>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <goals>
+                  <goal>shade</goal>
+                </goals>
+                <configuration>
+
+<!-- This fits the issue "Invalid signature file digest for Manifest main attributes"
+  cf. http://zhentao-li.blogspot.com/2012/06/maven-shade-plugin-invalid-signature.html
+ -->
+          <filters>
+            <filter>
+              <artifact>*:*</artifact>
+              <excludes>
+                <exclude>META-INF/*.SF</exclude>
+                <exclude>META-INF/*.DSA</exclude>
+                <exclude>META-INF/*.RSA</exclude>
+              </excludes>
+            </filter>
+          </filters>
+
+                  <!-- this will create both a normal thin jar and also a fatjar -->
+                  <shadedArtifactAttached>true</shadedArtifactAttached>
+                  <shadedClassifierName>fatjar</shadedClassifierName>
+                  <artifactSet>
+                    <excludes>
+                      <exclude>org.apache.hadoop:*</exclude>
+                    </excludes>
+                  </artifactSet>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+
+    </plugins>
+  </build>
+
+  <repositories>
+    <repository>
+      <id>cloudera</id>
+      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
+    </repository>
+    <repository>
+      <id>maven</id>
+      <url>http://repo.maven.apache.org/maven2/</url>
+    </repository>
+  </repositories>
+
+  <dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.11</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Begin: Hadoop-related dependencies -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-common</artifactId>
+      <version>${hadoop.version2}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-client</artifactId>
+      <version>${hadoop.version2}</version>
+    </dependency>
+    <!-- End: Hadoop-related dependencies -->
+
+    <dependency>
+      <groupId>edu.umd</groupId>
+      <artifactId>cloud9</artifactId>
+      <version>1.4.17</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.lucene</groupId>
+      <artifactId>lucene-analyzers-smartcn</artifactId>
+      <version>4.0.0</version>
+    </dependency>
+
+    <!-- Needed for ReadSequenceFiles -->
+    <dependency>
+      <groupId>org.apache.pig</groupId>
+      <artifactId>pig</artifactId>
+      <version>0.12.1</version>
+    </dependency>
+
+  </dependencies>
+</project>
