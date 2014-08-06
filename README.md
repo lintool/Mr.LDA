@@ -159,6 +159,8 @@ We use  [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c
 ```
 wget http://www.cs.princeton.edu/~blei/lda-c/lda-c-dist.tgz
 tar -xzvf lda-c-dist.tgz
+cd lda-c-dist
+make
 ```
 - Get the `beta` file from Mr. LDA and convert it to LDAC format
 ```
@@ -186,7 +188,7 @@ Remember that `alpha` is the hyperparameter for document-topics learned from Mr.
 ```
 //infer heldout for each documents
 cd lda-c-dist
-./lda inf inf-settings.txt 20news.mrlda.train.20.ldac 20news.mrlda.test 20news.mrlda.20.HL
+./lda inf inf-settings.txt 20news.mrlda.train.20.ldac 20news.ldac.test 20news.mrlda.20.HL
 
 //average heldout scores 
 python calculate_heldout_likelihood.py 20news.mrlda.20.HL-lda-lhood.dat
@@ -212,7 +214,7 @@ copy 20news.raw.train 20news.raw.test 20news_train_test_raws
 python createOneLineDict.py 20news.vocab.txt
 
 //get statistics of corpus
-python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline 20news_train_dev_raws > 20news.train.dev.wc
+python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline 20news_train_test_raws > 20news.train.test.wc
 ```
 
 If you want to use `Wikipedia` as a ground corpus, it is better that the directory contains many small (1000 documents, one per line) files. 
@@ -234,7 +236,7 @@ python convertMrldaTopicsToTopics.py 20news.mrlda.train.20.topics 20news.mrlda.t
 - Compute Topic Coherence using `npmi`
 ```
 python topic_interpretability/ComputeObservedCoherence.py \
-20news.mrlda.train.20.ti.topics npmi 20news.train.dev.wc \
+20news.mrlda.train.20.ti.topics npmi 20news.train.test.wc \
 > 20news.mrlda.20.oc
 ```
 
