@@ -170,7 +170,8 @@ edu.umd.cloud9.io.ReadSequenceFile \
 20news.mrlda.train-lda/beta-ITERATION > 20news.mrlda.train.20.beta
 
 //convert to proper format for LDAC
-sh convertMrldaBetaToBeta.py 20news.mrlda.train.20.beta 20news.mrlda.train.20.ldac.beta VOCAB_SIZE
+python convertMrldaBetaToBeta.py 20news.mrlda.train.20.beta \
+20news.mrlda.train.20.ldac.beta VOCAB_SIZE
 ```
 While `VOCAB_SIZE` is the size of vocabulary, you can get this number by `wc 20news.vocab.txt`.
 
@@ -188,7 +189,8 @@ Remember that `alpha` is the hyperparameter for document-topics learned from Mr.
 ```
 //infer heldout for each documents
 cd lda-c-dist
-./lda inf inf-settings.txt 20news.mrlda.train.20.ldac 20news.ldac.test 20news.mrlda.20.HL
+./lda inf inf-settings.txt \
+20news.mrlda.train.20.ldac 20news.ldac.test 20news.mrlda.20.HL
 
 //average heldout scores 
 python calculate_heldout_likelihood.py 20news.mrlda.20.HL-lda-lhood.dat
@@ -214,7 +216,8 @@ copy 20news.raw.train 20news.raw.test 20news_train_test_raws
 python createOneLineDict.py 20news.vocab.txt
 
 //get statistics of corpus
-python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline 20news_train_test_raws > 20news.train.test.wc
+python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline \
+20news_train_test_raws > 20news.train.test.wc
 ```
 
 If you want to use `Wikipedia` as a ground corpus, it is better that the directory contains many small (1000 documents, one per line) files. 
@@ -230,7 +233,8 @@ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.DisplayTopic \
 >20news.mrlda.train.20.topics
 
 //convert it to proper format
-python convertMrldaTopicsToTopics.py 20news.mrlda.train.20.topics 20news.mrlda.train.20.ti.topics 20
+python convertMrldaTopicsToTopics.py 20news.mrlda.train.20.topics \
+20news.mrlda.train.20.ti.topics 20
 ```
 
 - Compute Topic Coherence using `npmi`
