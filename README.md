@@ -12,20 +12,20 @@ Getting Started
 Clone the repo:
 
 ```
-git clone git@github.com:lintool/Mr.LDA.git
+$ git clone git@github.com:lintool/Mr.LDA.git
 ```
 
 Then build using the standard invocation:
 
 ```
-mvn clean package
+$ mvn clean package
 ```
 
 If you want to set up your Eclipse environment:
 
 ```
-mvn eclipse:clean
-mvn eclipse:eclipse
+$ mvn eclipse:clean
+$ mvn eclipse:eclipse
 ```
 
 Corpus Preparation
@@ -46,8 +46,8 @@ ap880224-0195   bechtel group offer sell oil israel discount ...
 To prepare the corpus into the internal format used by Mr.LDA, run the following command:
 
 ```
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.ParseCorpus \
- -input ap-sample.txt -output ap-sample-parsed
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.ParseCorpus \
+    -input ap-sample.txt -output ap-sample-parsed
 ```
 
 When you examine the output, you'll see:
@@ -64,15 +64,15 @@ The directory `term` stores the mapping between a unique token and its unique in
 To example the first 20 document id mappings:
 
 ```
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
- edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/title 20
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/title 20
 ```
 
 And to example the first 20 terms of the dictionary:
 
 ```
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
- edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/term 20
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/term 20
 ```
 
 Running "Vanilla" LDA
@@ -81,10 +81,10 @@ Running "Vanilla" LDA
 Mr.LDA implements LDA using variational inference. Here's an invocation for running 50 iterations on the sample dataset:
 
 ```
-nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
- cc.mrlda.VariationalInference \
- -input ap-sample-parsed/document -output ap-sample-lda \
- -term 10000 -topic 20 -iteration 50 -mapper 50 -reducer 20 >& lda.log &
+$ nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    cc.mrlda.VariationalInference \
+    -input ap-sample-parsed/document -output ap-sample-lda \
+    -term 10000 -topic 20 -iteration 50 -mapper 50 -reducer 20 >& lda.log &
 ```
 
 The above command will put the process in the background and you can `tail -f lda.log` to see its process.
@@ -94,11 +94,11 @@ Note that `-term` option specifies the number of unique tokens in the corpus. Th
 If the MapReduce jobs are interrupted for any reason, you can restart at a particular iteration with the `-modelindex` parameter. For example, to pick up where the previous command left off and run another 10 iterations, do this:
 
 ```
-nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
- cc.mrlda.VariationalInference \
- -input ap-sample-parsed/document -output ap-sample-lda \
- -term 10000 -topic 20 -iteration 60 -mapper 50 -reducer 20 \
- -modelindex 50 >& lda.log &
+$ nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    cc.mrlda.VariationalInference \
+    -input ap-sample-parsed/document -output ap-sample-lda \
+    -term 10000 -topic 20 -iteration 60 -mapper 50 -reducer 20 \
+    -modelindex 50 >& lda.log &
 ```
 
 Evaluation on 20newsgroup
@@ -224,7 +224,7 @@ $ cd ..
 $ python parse_20news/calculate_heldout_likelihood.py 20news.mrlda.20.HL-lda-lhood.dat
 ```
 
-*Step 4: Compute Topic coherence**
+**Step 4: Compute Topic coherence**
 
 We use [Topic Interpretability](https://github.com/jhlau/topic_interpretability) to compute topic coherence. Topic coherence evaluates topics against a ground corpus using measures such as `npmi` (stands for normalized point-wise mutual information). The ground corpus can be the whole `Wikipedia`. For this task, we use the training set and test set as a ground corpus.
 
@@ -253,7 +253,7 @@ $ python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline \
     20news_train_test_raws > 20news.train.test.wc
 ```
 
-If you want to use `Wikipedia` as a ground corpus, it is better that the directory contains many small (1000 documents, one per line) files. 
+If you want to use `Wikipedia` as a ground corpus, it is better than the directory that contains many small (1000 documents, one per line) files.
 
 Prepare topics:
 
