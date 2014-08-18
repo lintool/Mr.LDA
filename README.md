@@ -12,26 +12,27 @@ Getting Started
 Clone the repo:
 
 ```
-git clone git@github.com:lintool/Mr.LDA.git
+$ git clone git@github.com:lintool/Mr.LDA.git
 ```
 
 Then build using the standard invocation:
 
 ```
-mvn clean package
+$ mvn clean package
 ```
 
 If you want to set up your Eclipse environment:
 
 ```
-mvn eclipse:clean
-mvn eclipse:eclipse
+$ mvn eclipse:clean
+$ mvn eclipse:eclipse
 ```
 
 Corpus Preparation
 ------------------
 
-Some sample data from the Associated Press can be found in this [separate repo](https://github.com/lintool/Mr.LDA-data). This is the same sample data that is used in [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c/).
+Some sample data from the Associated Press can be found in this [separate repo](https://github.com/lintool
+/Mr.LDA-data). This is the same sample data that is used in [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c/).
 
 The repo includes a Python script for parsing the corpus into a format that Mr.LDA uses. The output of the script is stored in `ap-sample.txt.gz`. This is the data file that you'll want to load in HDFS.
 
@@ -45,8 +46,8 @@ ap880224-0195   bechtel group offer sell oil israel discount ...
 To prepare the corpus into the internal format used by Mr.LDA, run the following command:
 
 ```
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.ParseCorpus \
- -input ap-sample.txt -output ap-sample-parsed
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.ParseCorpus \
+    -input ap-sample.txt -output ap-sample-parsed
 ```
 
 When you examine the output, you'll see:
@@ -63,27 +64,27 @@ The directory `term` stores the mapping between a unique token and its unique in
 To example the first 20 document id mappings:
 
 ```
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
- edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/title 20
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/title 20
 ```
 
 And to example the first 20 terms of the dictionary:
 
 ```
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
- edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/term 20
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    edu.umd.cloud9.io.ReadSequenceFile ap-sample-parsed/term 20
 ```
 
 Running "Vanilla" LDA
 ---------------------
 
- Mr.LDA implements LDA using variational inference. Here's an invocation for running 50 iterations on the sample dataset:
+Mr.LDA implements LDA using variational inference. Here's an invocation for running 50 iterations on the sample dataset:
 
 ```
-nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
- cc.mrlda.VariationalInference \
- -input ap-sample-parsed/document -output ap-sample-lda \
- -term 10000 -topic 20 -iteration 50 -mapper 50 -reducer 20 >& lda.log &
+$ nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    cc.mrlda.VariationalInference \
+    -input ap-sample-parsed/document -output ap-sample-lda \
+    -term 10000 -topic 20 -iteration 50 -mapper 50 -reducer 20 >& lda.log &
 ```
 
 The above command will put the process in the background and you can `tail -f lda.log` to see its process.
@@ -93,12 +94,189 @@ Note that `-term` option specifies the number of unique tokens in the corpus. Th
 If the MapReduce jobs are interrupted for any reason, you can restart at a particular iteration with the `-modelindex` parameter. For example, to pick up where the previous command left off and run another 10 iterations, do this:
 
 ```
-nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
- cc.mrlda.VariationalInference \
- -input ap-sample-parsed/document -output ap-sample-lda \
- -term 10000 -topic 20 -iteration 60 -mapper 50 -reducer 20 \
- -modelindex 50 >& lda.log &
+$ nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    cc.mrlda.VariationalInference \
+    -input ap-sample-parsed/document -output ap-sample-lda \
+    -term 10000 -topic 20 -iteration 60 -mapper 50 -reducer 20 \
+    -modelindex 50 >& lda.log &
 ```
+
+Evaluation on 20newsgroup
+-------------------------
+
+In this section, we will evaluate Mr. LDA using held-out likelihood and topic coherence on the 20newsgroup data.
+The key to evaluation of any machine learning algorithm is to split the corpus into three datasets: *training set*, *development set*, and *test set*. The *training set* is used to fit the model, the *development set* is used to select parameters, and the *test set* is used for evaluation. For this task, since we do not focus on tuning parameters, we use only the training set and test set.
+
+**Step 1: Preprocessing**
+
+The sample split and scripts for preprocessing 20newsgroup can be found in [separate repo](https://github.com/lintool/Mr.LDA-data). Clone the repo and use it as a working directory:
+
+```
+$ git clone git@github.com:lintool/Mr.LDA-data.git
+$ cd Mr.LDA-data
+```
+
+Download the 20newsgroup data from [here](http://qwone.com/~jason/20Newsgroups/):
+
+```
+$ wget http://qwone.com/~jason/20Newsgroups/20news-bydate.tar.gz
+$ tar -xzvf 20news-bydate.tar.gz
+```
+
+Unpack the following file:
+
+```
+$ tar xvfz 20news-labels.tgz
+```
+
+Preprocess the collection:
+
+```
+# 50/500 are min/max document frequencies for a word, alter these numbers as you wish
+$ python parse_20news/createLdacMrlda.py 20news-labels/train.labels \
+   20news-labels/dev.labels 20news-labels/test.labels 50 500
+```
+
+The above command generates the following files:
+ 
++ LDAC files: `20news.ldac.train`, `20news.ldac.dev`, `20news.ldac.test`
++ Mr. LDA files: `20news.mrlda.train`, `20news.mrlda.dev`, `20news.mrlda.test`
++ Raw data files: `20news.raw.train`, `20news.raw.dev`, `20news.raw.test`
++ Vocabulary file: `20news.vocab.txt`
++ Statistics and final labels: `20news.stat.train`, `20news.stat.dev`, `20news.stat.test`
+
+**Step 2: Run Mr. LDA**
+
+Follow the below steps to run Mr. LDA:
+
+```
+# Copy data to hdfs
+$ hadoop fs -put 20news.mrlda.train
+
+# Parse corpus
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.ParseCorpus \
+   -input 20news.mrlda.train -output 20news.mrlda.train-parsed
+
+# Run Vanilla LDA with symmetric alpha
+$ nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    cc.mrlda.VariationalInference \
+    -input 20news.mrlda.train-parsed/document \
+    -output 20news.mrlda.train-lda \
+    -symmetricalpha 0.01 \
+    -topic 20 -term 100000 -iteration 1000 \
+    -mapper 50 -reducer 20 >& 20news.log &
+```
+
+**Step 3: Compute held-out likelihood**
+
+We use [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c/) (LDAC) to compute held-out likelihood. LDAC requires a `.beta` file and `.other` file to compute held-out score on unseen data.
+
+First, download and untar LDAC:
+
+```
+$ wget http://www.cs.princeton.edu/~blei/lda-c/lda-c-dist.tgz
+$ tar -xzvf lda-c-dist.tgz
+$ cd lda-c-dist
+$ make
+```
+
+Grab the `beta` file from Mr. LDA and convert it to LDAC format:
+
+```
+# Grab beta file from hdfs, ITERATION is the iteration where Mr. LDA converges
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    edu.umd.cloud9.io.ReadSequenceFile \
+    20news.mrlda.train-lda/beta-ITERATION > 20news.mrlda.train.20.beta
+
+# convert to proper format for LDAC
+$ python parse_20news/convertMrldaBetaToBeta.py 20news.mrlda.train.20.beta \
+    20news.mrlda.train.20.ldac.beta VOCAB_SIZE
+```
+
+While `VOCAB_SIZE` is the size of vocabulary, you can get this number by `wc 20news.vocab.txt`.
+
+Create `.other` file and name it `20news.mrlda.train.20.ldac.other`. This file contains values for `alpha`, `number of topics`, and `vocabulary size`
+
+For example:
+```
+num_topics 20
+num_terms 3126
+alpha 0.015
+```
+
+Remember that `alpha` is the hyperparameter for document-topics learned from Mr. LDA. You can find its value from `20news.mrlda.train-lda/alpha-ITERATION` using the following command:
+
+```
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+   edu.umd.cloud9.io.ReadSequenceFile 20news.mrlda.train-lda/alpha-ITERATION
+```
+
+Finally, compute the held-out likelihood:
+
+```
+# Infer heldout for each documents
+$ cd lda-c-dist
+$ ./lda inf inf-settings.txt \
+   ../20news.mrlda.train.20.ldac ../20news.ldac.test ../20news.mrlda.20.HL
+
+# Average heldout scores
+$ cd ..
+$ python parse_20news/calculate_heldout_likelihood.py 20news.mrlda.20.HL-lda-lhood.dat
+```
+
+**Step 4: Compute Topic coherence**
+
+We use [Topic Interpretability](https://github.com/jhlau/topic_interpretability) to compute topic coherence. Topic coherence evaluates topics against a ground corpus using measures such as `npmi` (stands for normalized point-wise mutual information). The ground corpus can be the whole `Wikipedia`. For this task, we use the training set and test set as a ground corpus.
+
+Download the Topic Interpretability tool:
+
+```
+$ git clone https://github.com/jhlau/topic_interpretability
+```
+
+Prepare the corpus:
+
+```
+$ mkdir 20news_train_test_raws
+$ cp -r 20news.raw.train 20news_train_test_raws/
+$ cp -r 20news.raw.test 20news_train_test_raws/
+```
+
+Compute statistics:
+
+```
+# Ggenerate .oneline file
+$ python parse_20news/createOneLineDict.py 20news.vocab.txt
+
+# Get statistics of corpus
+$ python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline \
+    20news_train_test_raws > 20news.train.test.wc
+```
+
+If you want to use `Wikipedia` as a ground corpus, it is better than the directory that contains many small (1000 documents, one per line) files.
+
+Prepare topics:
+
+```
+# Get topic file from HDFS
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.DisplayTopic \
+    -index 20news.mrlda.train-parsed/term \
+    -input 20news.mrlda.train-lda/beta-ITERATION \
+    -topdisplay 20 > 20news.mrlda.train.20.topics
+
+# Convert it to proper format
+$ python parse_20news/convertMrldaTopicsToTopics.py 20news.mrlda.train.20.topics \
+    20news.mrlda.train.20.ti.topics 20
+```
+
+Compute Topic Coherence using `npmi`:
+
+```
+$ python topic_interpretability/ComputeObservedCoherence.py \
+    20news.mrlda.train.20.ti.topics npmi 20news.train.test.wc > 20news.mrlda.20.oc
+```
+
+**WARNING**: The following documentation may be out of date...
 
 
 Input Data Format
@@ -204,3 +382,4 @@ To display the hyper-parameters, access alpha-\* file using following command
     hadoop jar Mr.LDA.jar edu.umd.cloud9.io.ReadSequenceFile /path/to/alpha-*
 
 You may refer to -help options for further information.
+
