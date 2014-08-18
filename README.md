@@ -216,7 +216,8 @@ Finally, compute the held-out likelihood:
 ```
 # Infer heldout for each documents
 $ cd lda-c-dist
-$ ./lda inf inf-settings.txt ../20news.mrlda.train.20.ldac ../20news.ldac.test ../20news.mrlda.20.HL
+$ ./lda inf inf-settings.txt \
+   ../20news.mrlda.train.20.ldac ../20news.ldac.test ../20news.mrlda.20.HL
 
 # Average heldout scores
 $ cd ..
@@ -227,7 +228,7 @@ $ python parse_20news/calculate_heldout_likelihood.py 20news.mrlda.20.HL-lda-lho
 
 We use [Topic Interpretability](https://github.com/jhlau/topic_interpretability) to compute topic coherence. Topic coherence evaluates topics against a ground corpus using measures such as `npmi` (stands for normalized point-wise mutual information). The ground corpus can be the whole `Wikipedia`. For this task, we use the training set and test set as a ground corpus.
 
-Download Topic Interpretability tool
+Download the Topic Interpretability tool:
 
 ```
 $ git clone https://github.com/jhlau/topic_interpretability
@@ -237,14 +238,15 @@ Prepare the corpus:
 
 ```
 $ mkdir 20news_train_test_raws
-copy 20news.raw.train 20news.raw.test 20news_train_test_raws
+$ cp -r 20news.raw.train 20news_train_test_raws/
+$ cp -r 20news.raw.test 20news_train_test_raws/
 ```
 
 Compute statistics:
 
 ```
 # Ggenerate .oneline file
-$ python createOneLineDict.py 20news.vocab.txt
+$ python parse_20news/createOneLineDict.py 20news.vocab.txt
 
 # Get statistics of corpus
 $ python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline \
@@ -263,7 +265,7 @@ $ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.DisplayTopic \
     -topdisplay 20 > 20news.mrlda.train.20.topics
 
 # Convert it to proper format
-$ python convertMrldaTopicsToTopics.py 20news.mrlda.train.20.topics \
+$ python parse_20news/convertMrldaTopicsToTopics.py 20news.mrlda.train.20.topics \
     20news.mrlda.train.20.ti.topics 20
 ```
 
@@ -273,6 +275,9 @@ Compute Topic Coherence using `npmi`:
 $ python topic_interpretability/ComputeObservedCoherence.py \
     20news.mrlda.train.20.ti.topics npmi 20news.train.test.wc > 20news.mrlda.20.oc
 ```
+
+**WARNING**: The following documentation may be out of date...
+
 
 Input Data Format
 ----------
