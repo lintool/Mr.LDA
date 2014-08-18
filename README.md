@@ -78,7 +78,7 @@ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
 Running "Vanilla" LDA
 ---------------------
 
- Mr.LDA implements LDA using variational inference. Here's an invocation for running 50 iterations on the sample dataset:
+Mr.LDA implements LDA using variational inference. Here's an invocation for running 50 iterations on the sample dataset:
 
 ```
 nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
@@ -102,24 +102,39 @@ nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
 ```
 
 Evaluation on 20newsgroup
-----------
+-------------------------
 
-In this section, we will evaluate Mr. LDA using **Held-out Likelihood** and **Topic Coherence**.
-The key to evaluation of any machine learning algorithm is to split corpus data into three datasets: **Training set**, **Development set**, and **Test set**. The **Training set** is used to fit the model, the **Development set** is used to select parameters, and the **Test set** is used for evaluation. For this task, since we do not focus on tuning parameters, we use only the **Training set** and **Test set**.
+In this section, we will evaluate Mr. LDA using held-out likelihood and topic coherence on the 20newsgroup data.
+The key to evaluation of any machine learning algorithm is to split the corpus into three datasets: *training set*, *development set*, and *test set*. The *training set* is used to fit the model, the *development set* is used to select parameters, and the *test set* is used for evaluation. For this task, since we do not focus on tuning parameters, we use only the training set and test set.
 
+**Step 1: Preprocessing**
 
-**STEP1: Preprocessing**
+The sample split and scripts for preprocessing 20newsgroup can be found in [separate repo](https://github.com/lintool/Mr.LDA-data). Clone the repo and use it as a working directory:
+
+```
+$ git clone git@github.com:lintool/Mr.LDA-data.git
+$ cd Mr.LDA-data
+```
 
 Download the 20newsgroup data from [here](http://qwone.com/~jason/20Newsgroups/):
-```
-wget http://qwone.com/~jason/20Newsgroups/20news-bydate.tar.gz
-tar -xzvf 20news-bydate.tar.gz
-```
-The sample split and scripts for preprocessing 20newsgroup can be found in [separate repo](https://github.com/lintool/Mr.LDA-data). Run the following command to extract necessary files for later usage:
 
 ```
-#50/500 are min/max document frequencies for a word, alter these numbers as you wish
-python createLdacMrlda.py train.labels dev.labels test.labels 50 500
+$ wget http://qwone.com/~jason/20Newsgroups/20news-bydate.tar.gz
+$ tar -xzvf 20news-bydate.tar.gz
+```
+
+Unpack the following file:
+
+```
+$ tar xvfz 20news-labels.tgz
+```
+
+Preprocess the collection:
+
+```
+# 50/500 are min/max document frequencies for a word, alter these numbers as you wish
+$ python parse_20news/createLdacMrlda.py 20news-labels/train.labels \
+   20news-labels/dev.labels 20news-labels/test.labels 50 500
 ```
 
 The above command generates the following files:
@@ -130,52 +145,57 @@ The above command generates the following files:
 + Vocabulary file: `20news.vocab.txt`
 + Statistics and final labels: `20news.stat.train`, `20news.stat.dev`, `20news.stat.test`
 
-**STEP2: Run Mr. LDA**
+**Step 2: Run Mr. LDA**
 
-Follow the above steps to run Mr. LDA.
-```
-//copy data to hdfs
-hadoop fs -put 20news.mrlda.train
+Follow the below steps to run Mr. LDA:
 
-//parse corpus
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.ParseCorpus \
--input 20news.mrlda.train \
--output 20news.mrlda.train-parsed
+```
+# Copy data to hdfs
+$ hadoop fs -put 20news.mrlda.train
 
-//run Vanilla LDA with symmetric alpha
-nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
-cc.mrlda.VariationalInference \
--input 20news.mrlda.train-parsed/document \
--output 20news.mrlda.train-lda \
--symmetricalpha 0.01 \
--topic 20 -term 100000 -iteration 1000 \
--mapper 50 -reducer 20 >& 20news.log &
-```
-**STEP3: Compute Held-out likelihood**
+# Parse corpus
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.ParseCorpus \
+   -input 20news.mrlda.train -output 20news.mrlda.train-parsed
 
-We use  [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c/) to compute **Held-out likelihood**. LDAC requires .beta file and .other file in order to compute Held-out score on unseen data.
+# Run Vanilla LDA with symmetric alpha
+$ nohup hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    cc.mrlda.VariationalInference \
+    -input 20news.mrlda.train-parsed/document \
+    -output 20news.mrlda.train-lda \
+    -symmetricalpha 0.01 \
+    -topic 20 -term 100000 -iteration 1000 \
+    -mapper 50 -reducer 20 >& 20news.log &
+```
 
-- Download and untar LDAC:
-```
-wget http://www.cs.princeton.edu/~blei/lda-c/lda-c-dist.tgz
-tar -xzvf lda-c-dist.tgz
-cd lda-c-dist
-make
-```
-- Get the `beta` file from Mr. LDA and convert it to LDAC format
-```
-//get beta file from hdfs, *ITERATION* is the iteration where Mr. LDA converges
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
-edu.umd.cloud9.io.ReadSequenceFile \
-20news.mrlda.train-lda/beta-ITERATION > 20news.mrlda.train.20.beta
+**Step 3: Compute held-out likelihood**
 
-//convert to proper format for LDAC
-python convertMrldaBetaToBeta.py 20news.mrlda.train.20.beta \
-20news.mrlda.train.20.ldac.beta VOCAB_SIZE
+We use [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c/) (LDAC) to compute held-out likelihood. LDAC requires a `.beta` file and `.other` file to compute held-out score on unseen data.
+
+First, download and untar LDAC:
+
 ```
+$ wget http://www.cs.princeton.edu/~blei/lda-c/lda-c-dist.tgz
+$ tar -xzvf lda-c-dist.tgz
+$ cd lda-c-dist
+$ make
+```
+
+Grab the `beta` file from Mr. LDA and convert it to LDAC format:
+
+```
+# Grab beta file from hdfs, ITERATION is the iteration where Mr. LDA converges
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+    edu.umd.cloud9.io.ReadSequenceFile \
+    20news.mrlda.train-lda/beta-ITERATION > 20news.mrlda.train.20.beta
+
+# convert to proper format for LDAC
+$ python parse_20news/convertMrldaBetaToBeta.py 20news.mrlda.train.20.beta \
+    20news.mrlda.train.20.ldac.beta VOCAB_SIZE
+```
+
 While `VOCAB_SIZE` is the size of vocabulary, you can get this number by `wc 20news.vocab.txt`.
 
-- Create `.other` file and name it `20news.mrlda.train.20.ldac.other`. This file contains values for `alpha`, `number of topics`, and `vocabulary size`
+Create `.other` file and name it `20news.mrlda.train.20.ldac.other`. This file contains values for `alpha`, `number of topics`, and `vocabulary size`
 
 For example:
 ```
@@ -183,65 +203,75 @@ num_topics 20
 num_terms 3126
 alpha 0.015
 ```
-Remember that `alpha` is the hyperparameter for document-topics learned from Mr. LDA. You can find its value from `20news.mrlda.train-lda/alpha-ITERATION`
 
-- Compute Held-out score
+Remember that `alpha` is the hyperparameter for document-topics learned from Mr. LDA. You can find its value from `20news.mrlda.train-lda/alpha-ITERATION` using the following command:
+
 ```
-//infer heldout for each documents
-cd lda-c-dist
-./lda inf inf-settings.txt \
-20news.mrlda.train.20.ldac 20news.ldac.test 20news.mrlda.20.HL
-
-//average heldout scores 
-python calculate_heldout_likelihood.py 20news.mrlda.20.HL-lda-lhood.dat
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar \
+   edu.umd.cloud9.io.ReadSequenceFile 20news.mrlda.train-lda/alpha-ITERATION
 ```
 
-**STEP4: Compute Topic coherence**
+Finally, compute the held-out likelihood:
 
-We use [Topic Interpretability](https://github.com/jhlau/topic_interpretability) to compute topic coherence. Topic coherence evaluates topics against a ground corpus using measures such as `npmi` (stands for normalized point-wise mutual information). The ground corpus can be the whole `Wikipedia`. For this task, we use **Training set** and **Test set** as a ground corpus.
+```
+# Infer heldout for each documents
+$ cd lda-c-dist
+$ ./lda inf inf-settings.txt ../20news.mrlda.train.20.ldac ../20news.ldac.test ../20news.mrlda.20.HL
 
-- Download Topic Interpretability tool
-```
-git clone https://github.com/jhlau/topic_interpretability
+# Average heldout scores
+$ cd ..
+$ python parse_20news/calculate_heldout_likelihood.py 20news.mrlda.20.HL-lda-lhood.dat
 ```
 
-- Prepare corpus:
+*Step 4: Compute Topic coherence**
+
+We use [Topic Interpretability](https://github.com/jhlau/topic_interpretability) to compute topic coherence. Topic coherence evaluates topics against a ground corpus using measures such as `npmi` (stands for normalized point-wise mutual information). The ground corpus can be the whole `Wikipedia`. For this task, we use the training set and test set as a ground corpus.
+
+Download Topic Interpretability tool
+
 ```
-mkdir 20news_train_test_raws
+$ git clone https://github.com/jhlau/topic_interpretability
+```
+
+Prepare the corpus:
+
+```
+$ mkdir 20news_train_test_raws
 copy 20news.raw.train 20news.raw.test 20news_train_test_raws
 ```
-- Compute statistics:
-```
-//generate .oneline file
-python createOneLineDict.py 20news.vocab.txt
 
-//get statistics of corpus
-python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline \
-20news_train_test_raws > 20news.train.test.wc
+Compute statistics:
+
+```
+# Ggenerate .oneline file
+$ python createOneLineDict.py 20news.vocab.txt
+
+# Get statistics of corpus
+$ python topic_interpretability/ComputeWordCount.py 20news.vocab.txt.oneline \
+    20news_train_test_raws > 20news.train.test.wc
 ```
 
 If you want to use `Wikipedia` as a ground corpus, it is better that the directory contains many small (1000 documents, one per line) files. 
 
-- Prepare topics
+Prepare topics:
 
 ```
-//get topic file from hdfs
-hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.DisplayTopic \
--index 20news.mrlda.train-parsed/term \
--input 20news.mrlda.train-lda/beta-ITERATION \
--topdisplay 20 \
->20news.mrlda.train.20.topics
+# Get topic file from HDFS
+$ hadoop jar target/mrlda-0.9.0-SNAPSHOT-fatjar.jar cc.mrlda.DisplayTopic \
+    -index 20news.mrlda.train-parsed/term \
+    -input 20news.mrlda.train-lda/beta-ITERATION \
+    -topdisplay 20 > 20news.mrlda.train.20.topics
 
-//convert it to proper format
-python convertMrldaTopicsToTopics.py 20news.mrlda.train.20.topics \
-20news.mrlda.train.20.ti.topics 20
+# Convert it to proper format
+$ python convertMrldaTopicsToTopics.py 20news.mrlda.train.20.topics \
+    20news.mrlda.train.20.ti.topics 20
 ```
 
-- Compute Topic Coherence using `npmi`
+Compute Topic Coherence using `npmi`:
+
 ```
-python topic_interpretability/ComputeObservedCoherence.py \
-20news.mrlda.train.20.ti.topics npmi 20news.train.test.wc \
-> 20news.mrlda.20.oc
+$ python topic_interpretability/ComputeObservedCoherence.py \
+    20news.mrlda.train.20.ti.topics npmi 20news.train.test.wc > 20news.mrlda.20.oc
 ```
 
 Input Data Format
