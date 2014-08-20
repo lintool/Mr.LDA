@@ -245,7 +245,7 @@ $ cp -r 20news.raw.test 20news_train_test_raws/
 Compute statistics:
 
 ```
-# Ggenerate .oneline file
+# Generate .oneline file
 $ python parse_20news/createOneLineDict.py 20news.vocab.txt
 
 # Get statistics of corpus
