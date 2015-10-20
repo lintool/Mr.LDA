@@ -31,8 +31,7 @@ $ mvn eclipse:eclipse
 Corpus Preparation
 ------------------
 
-Some sample data from the Associated Press can be found in this [separate repo](https://github.com/lintool
-/Mr.LDA-data). This is the same sample data that is used in [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c/).
+Some sample data from the Associated Press can be found in this [separate repo](https://github.com/lintool/Mr.LDA-data). This is the same sample data that is used in [Blei's LDA implementation in C](http://www.cs.princeton.edu/~blei/lda-c/).
 
 The repo includes a Python script for parsing the corpus into a format that Mr.LDA uses. The output of the script is stored in `ap-sample.txt.gz`. This is the data file that you'll want to load in HDFS.
 
